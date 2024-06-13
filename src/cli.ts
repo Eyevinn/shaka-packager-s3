@@ -1,7 +1,7 @@
 #! /usr/bin/env node
 
 import { Command } from 'commander';
-import { createPackage, Input, prepare, uploadPackage } from './packager';
+import { doPackage, Input } from './packager';
 import path from 'node:path';
 
 function parseInputOptions(inputOptions: string[]): Input[] | undefined {
@@ -40,14 +40,13 @@ cli
       if (inputOptions) {
         console.log('inputs', inputOptions);
         console.log(`dest: ${dest}, source: ${source}`);
-        const stagingDir = await prepare(options.stagingDir);
-        await createPackage({
+        await doPackage({
+          dest,
+          source,
           inputs: inputOptions,
-          source: source,
-          stagingDir,
-          noImplicitAudio: options.noImplictAudio
+          stagingDir: options.stagingDir,
+          noImplicitAudio: options.noImplicitAudio
         });
-        await uploadPackage(dest, stagingDir);
       } else {
         console.error('Need at least one input!\n');
         cli.help();

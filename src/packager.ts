@@ -12,6 +12,20 @@ export type Input = {
   filename: string;
 };
 
+export interface PackageOptions {
+  inputs: Input[];
+  source?: string;
+  dest: string;
+  stagingDir?: string;
+  noImplicitAudio?: boolean;
+};
+
+export async function doPackage(opts: PackageOptions) {
+  const stagingDir = await prepare(opts.stagingDir);
+  await createPackage(opts);
+  await uploadPackage(toUrl(opts.dest), stagingDir);
+}
+
 export async function prepare(
   stagingDir = DEFAULT_STAGING_DIR
 ): Promise<string> {
@@ -89,15 +103,8 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
   }
 }
 
-export interface CreatePackageOptions {
-  inputs: Input[];
-  source?: string;
-  stagingDir?: string;
-  noImplicitAudio?: boolean;
-};
-
 export async function createPackage(
-  opts: CreatePackageOptions
+  opts: PackageOptions
 ) {
   const { inputs, source, stagingDir, noImplicitAudio} = opts;
   const sourceUrl = toUrlOrUndefined(source);
