@@ -1,7 +1,8 @@
 #! /usr/bin/env node
 
 import { Command } from 'commander';
-import { Input, createPackage, prepare, uploadPackage } from './packager';
+import { createPackage, Input, prepare, uploadPackage } from './packager';
+import path from 'node:path';
 
 function parseInputOptions(inputOptions: string[]): Input[] | undefined {
   if (inputOptions) {
@@ -21,22 +22,36 @@ function parseInputOptions(inputOptions: string[]): Input[] | undefined {
 
 const cli = new Command();
 cli
-  .description('Run shaka-packager with source on S3 and output to S3')
-  .argument('<source>', 'Source bucket URL (supported protocols: s3')
-  .argument('<dest>', 'Destination bucket URL (supported protocols: s3)')
+  .description('Run shaka-packager with source on S3 or locally, and output to S3 or local')
+  .argument('<dest>', 'Destination folder URL (supported protocols: s3, local file)')
+  .argument('[source]', 'Source folder URL (supported protocols: s3, local file')
   .option('-i, --input [inputOptions...]', 'Input options on the format: [a|v]:<key>=filename')
   .option(
-    '--staging-dir <stagingDir>',
+    '--staging-dir [stagingDir]',
     'Staging directory (default: /tmp/data)'
   )
-  .action(async (source, dest, options, command) => {
+  .option(
+    '--no-implicit-audio [noImplicitAudio]',
+    'Do not include audio unless audio input specified'
+  )
+  .action(async (dest, source, options, command) => {
     try {
       const inputOptions = parseInputOptions(options.input);
-      console.log('inputs', inputOptions);
       if (inputOptions) {
+        console.log('inputs', inputOptions);
+        console.log(`dest: ${dest}, source: ${source}`);
         const stagingDir = await prepare(options.stagingDir);
-        await createPackage(new URL(source), inputOptions, new URL(dest), stagingDir);
-        await uploadPackage(new URL(dest), stagingDir);
+        await createPackage({
+          inputs: inputOptions,
+          source: source,
+          stagingDir,
+          noImplicitAudio: options.noImplictAudio
+        });
+        await uploadPackage(dest, stagingDir);
+      } else {
+        console.error('Need at least one input!\n');
+        cli.help();
+        process.exit(1);
       }
     } catch(err) {
       console.log((err as Error).message);
