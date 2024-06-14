@@ -53,7 +53,6 @@ cli
     try {
       const inputOptions = parseInputOptions(options.input);
       if (inputOptions) {
-        console.log(options);
         console.log('inputs', inputOptions);
         console.log(`dest: ${dest}, source: ${options.sourceFolder}`);
         await doPackage({
