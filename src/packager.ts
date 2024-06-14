@@ -18,11 +18,12 @@ export interface PackageOptions {
   dest: string;
   stagingDir?: string;
   noImplicitAudio?: boolean;
+  shakaExecutable?: string;
 };
 
 export async function doPackage(opts: PackageOptions) {
   const stagingDir = await prepare(opts.stagingDir);
-  await createPackage(opts);
+  await createPackage({ ...opts, stagingDir });
   await uploadPackage(toUrl(opts.dest), stagingDir);
 }
 
@@ -114,9 +115,10 @@ export async function createPackage(
   for (const input of inputs) {
     const localFilename = await download(input, sourceUrl, stagingDir);
     if (input.type === 'video') {
-      const initSegment = join(input.key, 'init.mp4');
-      const segmentTemplate = join(input.key, '$Number$.m4s');
-      const playlist = `video-${input.key}.m3u8`;
+      const playlistName = `video-${input.key}`;
+      const initSegment = join(playlistName, 'init.mp4');
+      const segmentTemplate = join(playlistName, '$Number$.m4s');
+      const playlist = `${playlistName}.m3u8`;
       const args = `in=${localFilename},stream=video,init_segment=${initSegment},segment_template=${segmentTemplate},playlist_name=${playlist}`;
       cmdInputs.push(args);
       if (!fileForAudio && noImplicitAudio) {
@@ -138,7 +140,8 @@ export async function createPackage(
     'manifest.mpd'
   ]);
   console.log(args);
-  const { status, stdout, stderr } = spawnSync('packager', args, {
+  const shaka = opts.shakaExecutable || 'packager';
+  const { status, stdout, stderr } = spawnSync(shaka, args, {
     cwd: stagingDir
   });
   if (status !== 0) {
