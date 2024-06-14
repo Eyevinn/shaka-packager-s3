@@ -2,7 +2,6 @@
 
 import { Command } from 'commander';
 import { doPackage, Input } from './packager';
-import path from 'node:path';
 
 function parseInputOptions(inputOptions: string[]): Input[] | undefined {
   if (inputOptions) {
@@ -22,9 +21,15 @@ function parseInputOptions(inputOptions: string[]): Input[] | undefined {
 
 const cli = new Command();
 cli
-  .description('Run shaka-packager with source on S3 or locally, and output to S3 or local')
+  .description(`Run shaka-packager with source on S3 or locally, and output to S3 or local
+  
+  Examples:
+    $ shaka-packager-s3 s3://source-bucket/folder s3://output-bucket/folder -i a:1=audio.mp4 -i v:1=video.mp4
+    $ shaka-packager-s3 /path/to/source/folder /path/to/output/folder -i a:1=audio.mp4 -i v:1=video.mp4  
+  `
+  )
+  .argument('<source>', 'Source folder URL, ignored if input uses absolute path (supported protocols: s3, local file)')
   .argument('<dest>', 'Destination folder URL (supported protocols: s3, local file)')
-  .argument('[source]', 'Source folder URL (supported protocols: s3, local file')
   .option('-i, --input [inputOptions...]', 'Input options on the format: [a|v]:<key>=filename')
   .option(
     '--staging-dir [stagingDir]',
