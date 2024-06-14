@@ -65,6 +65,7 @@ export async function download(
       }
       throw new Error('Download failed');
     }
+    console.log(`Downloaded ${input.filename} to ${localFilename}`);
     return localFilename;
   } else {
     throw new Error(`Unsupported protocol for download: ${source.protocol}`);
@@ -112,7 +113,6 @@ export async function createPackage(
   let fileForAudio;
   for (const input of inputs) {
     const localFilename = await download(input, sourceUrl, stagingDir);
-    console.log(`Downloaded ${input.filename} to ${localFilename}`);
     if (input.type === 'video') {
       const initSegment = join(input.key, 'init.mp4');
       const segmentTemplate = join(input.key, '$Number$.m4s');
