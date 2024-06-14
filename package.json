@@ -1,8 +1,8 @@
 {
-  "name": "shaka-packager-s3",
+  "name": "@eyevinn/shaka-packager-s3",
   "version": "0.1.0",
   "description": "Shaka packager with S3",
-  "main": "dist/cli.js",
+  "main": "dist/index.js",
   "bin": {
     "shaka-packager-s3": "dist/cli.js"
   },
