@@ -3,10 +3,13 @@
 CLI and library for creating a streaming bundle from an ABR bundle [shaka-packager](https://github.com/shaka-project/shaka-packager). Input and output can be in S3 buckets.
 
 ## Requirements
+
 shaka-packager executable must be available in path under the name `packager`. When using S3 for input and output the AWS CLI must be installed and configured.
 
 ## Usage
+
 ### CLI
+
 ```
 > npm install -g shaka-packager-s3
 > shaka-packager-s3 s3://source-bucket/folder s3://output-bucket/folder -i a:1=audio.mp4 -i v:1=video.mp4
@@ -15,25 +18,34 @@ shaka-packager executable must be available in path under the name `packager`. W
 ```
 
 ### Library
+
 ```javascript
 import { Input, doPackage } from '@eyevinn/shaka-packager-s3';
 
-const inputs = [{
+const inputs = [
+  {
     type: 'audio',
     key: '1',
     filename: 'audio.mp4'
-    }, {
+  },
+  {
     type: 'video',
     key: '1',
     filename: 'video.mp4'
-    }];
+  }
+];
 
 const dest = '/my/output/folder';
 doPackage({
-    dest,
-    inputs,
-}).then(() => {console.log('done')}).catch((err) => {console.error(err)});
-
+  dest,
+  inputs
+})
+  .then(() => {
+    console.log('done');
+  })
+  .catch((err) => {
+    console.error(err);
+  });
 ```
 
 ### Docker
@@ -60,6 +72,7 @@ docker run --rm \
 ## Development
 
 Prerequisites:
+
 - shaka-packager
 - AWS cli
 
