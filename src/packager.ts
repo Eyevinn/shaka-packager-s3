@@ -19,7 +19,7 @@ export interface PackageOptions {
   stagingDir?: string;
   noImplicitAudio?: boolean;
   shakaExecutable?: string;
-};
+}
 
 export async function doPackage(opts: PackageOptions) {
   const stagingDir = await prepare(opts.stagingDir);
@@ -41,20 +41,22 @@ export async function prepare(
 export async function download(
   input: Input,
   source?: URL,
-  stagingDir?: string,
+  stagingDir?: string
 ): Promise<string> {
-
   if (!source) {
     return input.filename;
   }
   if (!source.protocol || source.protocol === 'file:') {
     return path.resolve(source?.pathname || '.', input.filename);
   }
+  if (!stagingDir) {
+    throw new Error('Staging directory required for remote download');
+  }
 
   if (source.protocol === 's3:') {
     const sourceFile = new URL(join(source.pathname, input.filename), source);
-    const localFilename = join(stagingDir!, input.filename);
-    const { status, stdout, stderr } = spawnSync('aws', [
+    const localFilename = join(stagingDir, input.filename);
+    const { status, stderr } = spawnSync('aws', [
       's3',
       'cp',
       sourceFile.toString(),
@@ -71,7 +73,6 @@ export async function download(
   } else {
     throw new Error(`Unsupported protocol for download: ${source.protocol}`);
   }
-
 }
 
 export async function uploadPackage(dest: URL, stagingDir: string) {
@@ -86,7 +87,7 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
     return;
   }
   if (dest.protocol === 's3:') {
-    const { status, stdout, stderr } = spawnSync('aws', [
+    const { status, stderr } = spawnSync('aws', [
       's3',
       'cp',
       '--recursive',
@@ -105,10 +106,8 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
   }
 }
 
-export async function createPackage(
-  opts: PackageOptions
-) {
-  const { inputs, source, stagingDir, noImplicitAudio} = opts;
+export async function createPackage(opts: PackageOptions) {
+  const { inputs, source, stagingDir, noImplicitAudio } = opts;
   const sourceUrl = toUrlOrUndefined(source);
   const cmdInputs: string[] = [];
   let fileForAudio;
@@ -141,7 +140,7 @@ export async function createPackage(
   ]);
   console.log(args);
   const shaka = opts.shakaExecutable || 'packager';
-  const { status, stdout, stderr } = spawnSync(shaka, args, {
+  const { status, stderr } = spawnSync(shaka, args, {
     cwd: stagingDir
   });
   if (status !== 0) {

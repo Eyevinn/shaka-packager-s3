@@ -21,14 +21,18 @@ function parseInputOptions(inputOptions: string[]): Input[] | undefined {
 
 const cli = new Command();
 cli
-  .description(`Run shaka-packager with source on S3 or locally, and output to S3 or local
+  .description(
+    `Run shaka-packager with source on S3 or locally, and output to S3 or local
   
   Examples:
     $ shaka-packager-s3 s3://source-bucket/folder s3://output-bucket/folder -i a:1=audio.mp4 -i v:1=video.mp4
     $ shaka-packager-s3 /path/to/source/folder /path/to/output/folder -i a:1=audio.mp4 -i v:1=video.mp4  
   `
   )
-  .argument('<dest>', 'Destination folder URL (supported protocols: s3, local file)')
+  .argument(
+    '<dest>',
+    'Destination folder URL (supported protocols: s3, local file)'
+  )
   .option(
     '-s, --source-folder [sourceFolder]',
     'Source folder URL, ignored if input uses absolute path (supported protocols: s3, local file)'
@@ -49,7 +53,7 @@ cli
     '--no-implicit-audio [noImplicitAudio]',
     'Do not include audio unless audio input specified'
   )
-  .action(async (dest, options, command) => {
+  .action(async (dest, options) => {
     try {
       const inputOptions = parseInputOptions(options.input);
       if (inputOptions) {
@@ -68,9 +72,9 @@ cli
         cli.help();
         process.exit(1);
       }
-    } catch(err) {
+    } catch (err) {
       console.log((err as Error).message);
     }
   });
 
-  cli.parse(process.argv);
+cli.parse(process.argv);

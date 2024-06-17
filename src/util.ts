@@ -8,5 +8,7 @@ export function toUrlOrUndefined(url?: string) {
 }
 
 export function toUrl(url: string) {
-  return url.match(/^[a-z0-9]+:.*/) ? new URL(url) : new URL(`file://${path.resolve(url)}`);
+  return url.match(/^[a-z0-9]+:.*/)
+    ? new URL(url)
+    : new URL(`file://${path.resolve(url)}`);
 }
