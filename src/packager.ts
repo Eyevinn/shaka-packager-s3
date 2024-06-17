@@ -109,35 +109,17 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
 export async function createPackage(opts: PackageOptions) {
   const { inputs, source, stagingDir, noImplicitAudio } = opts;
   const sourceUrl = toUrlOrUndefined(source);
-  const cmdInputs: string[] = [];
-  let fileForAudio;
-  for (const input of inputs) {
-    const localFilename = await download(input, sourceUrl, stagingDir);
-    if (input.type === 'video') {
-      const playlistName = `video-${input.key}`;
-      const initSegment = join(playlistName, 'init.mp4');
-      const segmentTemplate = join(playlistName, '$Number$.m4s');
-      const playlist = `${playlistName}.m3u8`;
-      const args = `in=${localFilename},stream=video,init_segment=${initSegment},segment_template=${segmentTemplate},playlist_name=${playlist}`;
-      cmdInputs.push(args);
-      if (!fileForAudio && noImplicitAudio) {
-        fileForAudio = localFilename;
-      }
-    } else if (input.type === 'audio') {
-      fileForAudio = localFilename;
-    }
-  }
-  if (fileForAudio) {
-    cmdInputs.push(
-      `in=${fileForAudio},stream=audio,init_segment=audio/init.mp4,segment_template=audio/$Number$.m4s,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=ENGLISH`
-    );
-  }
-  const args = cmdInputs.concat([
-    '--hls_master_playlist_output',
-    'index.m3u8',
-    '--mpd_output',
-    'manifest.mpd'
-  ]);
+  const downloadedInputs: Input[] = await Promise.all(
+    inputs.map(async (input) => {
+      const filename = await download(input, sourceUrl, stagingDir);
+      return {
+        ...input,
+        filename
+      } as Input;
+    })
+  );
+
+  const args = createShakaArgs(downloadedInputs, noImplicitAudio === true);
   console.log(args);
   const shaka = opts.shakaExecutable || 'packager';
   const { status, stderr } = spawnSync(shaka, args, {
@@ -148,4 +130,45 @@ export async function createPackage(opts: PackageOptions) {
     console.log(stderr.toString());
     throw new Error('Packager failed');
   }
+}
+
+/**
+ * Create shaka commandline arguments
+ *
+ * @param inputs List of inputs, filename needs to be a local path
+ * @param noImplicitAudio Should we use first video file as audio source if no audio input is provided
+ */
+export function createShakaArgs(
+  inputs: Input[],
+  noImplicitAudio: boolean
+): string[] {
+  const cmdInputs: string[] = [];
+
+  let fileForAudio;
+  for (const input of inputs) {
+    if (input.type === 'video') {
+      const playlistName = `video-${input.key}`;
+      const initSegment = join(playlistName, 'init.mp4');
+      const segmentTemplate = join(playlistName, '$Number$.m4s');
+      const playlist = `${playlistName}.m3u8`;
+      const args = `in=${input.filename},stream=video,init_segment=${initSegment},segment_template=${segmentTemplate},playlist_name=${playlist}`;
+      cmdInputs.push(args);
+      if (!fileForAudio && !noImplicitAudio) {
+        fileForAudio = input.filename;
+      }
+    } else if (input.type === 'audio') {
+      fileForAudio = input.filename;
+    }
+  }
+  if (fileForAudio) {
+    cmdInputs.push(
+      `in=${fileForAudio},stream=audio,init_segment=audio/init.mp4,segment_template=audio/$Number$.m4s,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=ENGLISH`
+    );
+  }
+  return cmdInputs.concat([
+    '--hls_master_playlist_output',
+    'index.m3u8',
+    '--mpd_output',
+    'manifest.mpd'
+  ]);
 }
