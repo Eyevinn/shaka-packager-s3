@@ -1,6 +1,6 @@
 {
   "name": "@eyevinn/shaka-packager-s3",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shaka packager with S3",
   "main": "dist/index.js",
   "bin": {
