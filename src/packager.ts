@@ -162,7 +162,7 @@ export function createShakaArgs(
   }
   if (fileForAudio) {
     cmdInputs.push(
-      `in=${fileForAudio},stream=audio,init_segment=audio/init.mp4,segment_template=audio/$Number$.m4s,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=ENGLISH`
+      `in=${fileForAudio},stream=audio,init_segment=audio/init.mp4,segment_template=audio/$Number$.m4s,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=defaultaudio`
     );
   }
   return cmdInputs.concat([
