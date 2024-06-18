@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { readdir, rename, mkdir } from 'node:fs/promises';
 import { toUrl, toUrlOrUndefined } from './util';
+import mv from 'mv';
 
 const DEFAULT_STAGING_DIR = '/tmp/data';
 
@@ -75,13 +76,19 @@ export async function download(
   }
 }
 
+async function moveFile(src: string, dest: string) {
+  return new Promise((resolve, reject) => {
+    mv(src, dest, (err) => (err ? reject(err) : resolve(dest)));
+  });
+}
+
 export async function uploadPackage(dest: URL, stagingDir: string) {
   if (!dest.protocol || dest.protocol === 'file:') {
     await mkdir(dest.pathname, { recursive: true });
     const files = await readdir(stagingDir);
     await Promise.all(
       files.map((file) =>
-        rename(join(stagingDir, file), join(dest.pathname, file))
+        moveFile(join(stagingDir, file), join(dest.pathname, file))
       )
     );
     return;
@@ -122,12 +129,16 @@ export async function createPackage(opts: PackageOptions) {
   const args = createShakaArgs(downloadedInputs, noImplicitAudio === true);
   console.log(args);
   const shaka = opts.shakaExecutable || 'packager';
-  const { status, stderr } = spawnSync(shaka, args, {
+  const { status, stderr, error } = spawnSync(shaka, args, {
     cwd: stagingDir
   });
   if (status !== 0) {
-    console.log(`Packager failed with exit code ${status}`);
-    console.log(stderr.toString());
+    if (error) {
+      console.error(`Packager failed: ${error.message}`);
+    } else {
+      console.error(`Packager failed with exit code ${status}`);
+      console.error(stderr.toString());
+    }
     throw new Error('Packager failed');
   }
 }
