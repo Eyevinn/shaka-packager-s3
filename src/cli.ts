@@ -25,13 +25,9 @@ cli
     `Run shaka-packager with source on S3 or locally, and output to S3 or local
   
   Examples:
-    $ shaka-packager-s3 s3://source-bucket/folder s3://output-bucket/folder -i a:1=audio.mp4 -i v:1=video.mp4
-    $ shaka-packager-s3 /path/to/source/folder /path/to/output/folder -i a:1=audio.mp4 -i v:1=video.mp4  
+    $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s s3://source-bucket/folder -d s3://output-bucket/folder 
+    $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder
   `
-  )
-  .argument(
-    '<dest>',
-    'Destination folder URL (supported protocols: s3, local file)'
   )
   .option(
     '-s, --source-folder [sourceFolder]',
@@ -47,25 +43,29 @@ cli
   )
   .option(
     '--shaka-executable [shakaExecutable]',
-    `Path to shaka-packager executable, defaults to 'packager'`
+    `Path to shaka-packager executable, defaults to 'packager'. Can also be set with environment variable SHAKA_PACKAGER_EXECUTABLE.`
   )
   .option(
     '--no-implicit-audio [noImplicitAudio]',
     'Do not include audio unless audio input specified'
   )
-  .action(async (dest, options) => {
+  .option(
+    '-d, --destination-folder <dest>',
+    'Destination folder URL (supported protocols: s3, local file). Defaults to CWD.'
+  )
+  .action(async (options) => {
     try {
       const inputOptions = parseInputOptions(options.input);
       if (inputOptions) {
         console.log('inputs', inputOptions);
-        console.log(`dest: ${dest}, source: ${options.sourceFolder}`);
+        console.log(`dest: ${options.destinationFolder}, source: ${options.sourceFolder}`);
         await doPackage({
-          dest,
+          dest: options.destinationFolder || '.',
           source: options.sourceFolder,
           inputs: inputOptions,
           stagingDir: options.stagingDir,
           noImplicitAudio: options.noImplicitAudio,
-          shakaExecutable: options.shakaExecutable
+          shakaExecutable: options.shakaExecutable || process.env.SHAKA_PACKAGER_EXECUTABLE
         });
       } else {
         console.error('Need at least one input!\n');
@@ -77,4 +77,4 @@ cli
     }
   });
 
-cli.parse(process.argv);
+cli.parseAsync(process.argv);
