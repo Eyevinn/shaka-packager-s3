@@ -58,14 +58,17 @@ cli
       const inputOptions = parseInputOptions(options.input);
       if (inputOptions) {
         console.log('inputs', inputOptions);
-        console.log(`dest: ${options.destinationFolder}, source: ${options.sourceFolder}`);
+        console.log(
+          `dest: ${options.destinationFolder}, source: ${options.sourceFolder}`
+        );
         await doPackage({
           dest: options.destinationFolder || '.',
           source: options.sourceFolder,
           inputs: inputOptions,
           stagingDir: options.stagingDir,
           noImplicitAudio: options.noImplicitAudio,
-          shakaExecutable: options.shakaExecutable || process.env.SHAKA_PACKAGER_EXECUTABLE
+          shakaExecutable:
+            options.shakaExecutable || process.env.SHAKA_PACKAGER_EXECUTABLE
         });
       } else {
         console.error('Need at least one input!\n');

@@ -1,7 +1,7 @@
 import path, { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
-import { readdir, rename, mkdir } from 'node:fs/promises';
+import { readdir, mkdir } from 'node:fs/promises';
 import { toUrl, toUrlOrUndefined } from './util';
 import mv from 'mv';
 
