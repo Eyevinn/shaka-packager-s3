@@ -179,6 +179,7 @@ export function createShakaArgs(
   return cmdInputs.concat([
     '--hls_master_playlist_output',
     'index.m3u8',
+    '--generate_static_live_mpd',
     '--mpd_output',
     'manifest.mpd'
   ]);
