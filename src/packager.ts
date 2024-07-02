@@ -20,6 +20,7 @@ export interface PackageOptions {
   stagingDir?: string;
   noImplicitAudio?: boolean;
   shakaExecutable?: string;
+  serviceAccessToken?: string;
 }
 
 export async function doPackage(opts: PackageOptions) {
@@ -42,7 +43,8 @@ export async function prepare(
 export async function download(
   input: Input,
   source?: URL,
-  stagingDir?: string
+  stagingDir?: string,
+  serviceAccessToken?: string
 ): Promise<string> {
   if (!source) {
     return input.filename;
@@ -67,6 +69,30 @@ export async function download(
       if (stderr) {
         console.log(stderr.toString());
       }
+      throw new Error('Download failed');
+    }
+    console.log(`Downloaded ${input.filename} to ${localFilename}`);
+    return localFilename;
+  } else if (source.protocol === 'http:' || source.protocol === 'https:') {
+    const localFilename = join(stagingDir, path.basename(input.filename));
+    const auth: string[] = [];
+    if (serviceAccessToken) {
+      auth.push('-H');
+      auth.push(`x-jwt: Bearer ${serviceAccessToken}`);
+    }
+    const { status, stdout, stderr } = spawnSync(
+      'curl',
+      auth.concat([
+        '-v',
+        '-o',
+        localFilename,
+        source.href.replace(/\/$/, '') + input.filename
+      ])
+    );
+    if (stderr) {
+      console.log(stderr.toString());
+    }
+    if (status !== 0) {
       throw new Error('Download failed');
     }
     console.log(`Downloaded ${input.filename} to ${localFilename}`);
@@ -114,11 +140,17 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
 }
 
 export async function createPackage(opts: PackageOptions) {
-  const { inputs, source, stagingDir, noImplicitAudio } = opts;
+  const { inputs, source, stagingDir, noImplicitAudio, serviceAccessToken } =
+    opts;
   const sourceUrl = toUrlOrUndefined(source);
   const downloadedInputs: Input[] = await Promise.all(
     inputs.map(async (input) => {
-      const filename = await download(input, sourceUrl, stagingDir);
+      const filename = await download(
+        input,
+        sourceUrl,
+        stagingDir,
+        serviceAccessToken
+      );
       return {
         ...input,
         filename
