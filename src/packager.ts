@@ -13,17 +13,43 @@ export type Input = {
   filename: string;
 };
 
+export interface PackageFormatOptions {
+  hlsOnly?: boolean;
+  dashOnly?: boolean;
+  segmentSingleFile?: boolean;
+  segmentSingleFileTemplate?: string;
+  segmentDuration?: number;
+}
+
 export interface PackageOptions {
   inputs: Input[];
   source?: string;
   dest: string;
   stagingDir?: string;
   noImplicitAudio?: boolean;
+  packageFormatOptions?: PackageFormatOptions;
   shakaExecutable?: string;
   serviceAccessToken?: string;
 }
 
+function validateOptios(opts: PackageOptions) {
+  if (
+    opts?.packageFormatOptions?.hlsOnly &&
+    opts?.packageFormatOptions?.dashOnly
+  ) {
+    throw new Error('Cannot disable both hls and dash');
+  }
+  if (
+    opts?.packageFormatOptions?.segmentSingleFileTemplate &&
+    opts?.packageFormatOptions?.segmentSingleFileTemplate.indexOf('$KEY$') ===
+      -1
+  ) {
+    throw new Error('segmentSingleFileTemplate must contain $KEY$');
+  }
+}
+
 export async function doPackage(opts: PackageOptions) {
+  validateOptios(opts);
   const stagingDir = await prepare(opts.stagingDir);
   await createPackage({ ...opts, stagingDir });
   await uploadPackage(toUrl(opts.dest), stagingDir);
@@ -158,7 +184,11 @@ export async function createPackage(opts: PackageOptions) {
     })
   );
 
-  const args = createShakaArgs(downloadedInputs, noImplicitAudio === true);
+  const args = createShakaArgs(
+    downloadedInputs,
+    noImplicitAudio === true,
+    opts.packageFormatOptions
+  );
   console.log(args);
   const shaka = opts.shakaExecutable || 'packager';
   const { status, stderr, error } = spawnSync(shaka, args, {
@@ -180,39 +210,94 @@ export async function createPackage(opts: PackageOptions) {
  *
  * @param inputs List of inputs, filename needs to be a local path
  * @param noImplicitAudio Should we use first video file as audio source if no audio input is provided
+ * @param packageFormatOptions Options for package format
  */
 export function createShakaArgs(
   inputs: Input[],
-  noImplicitAudio: boolean
+  noImplicitAudio: boolean,
+  packageFormatOptions?: PackageFormatOptions
 ): string[] {
   const cmdInputs: string[] = [];
 
-  let fileForAudio;
-  for (const input of inputs) {
+  inputs.forEach((input: Input) => {
     if (input.type === 'video') {
       const playlistName = `video-${input.key}`;
-      const initSegment = join(playlistName, 'init.mp4');
-      const segmentTemplate = join(playlistName, '$Number$.m4s');
       const playlist = `${playlistName}.m3u8`;
-      const args = `in=${input.filename},stream=video,init_segment=${initSegment},segment_template=${segmentTemplate},playlist_name=${playlist}`;
-      cmdInputs.push(args);
-      if (!fileForAudio && !noImplicitAudio) {
-        fileForAudio = input.filename;
+      if (packageFormatOptions?.segmentSingleFile) {
+        const segmentName =
+          packageFormatOptions.segmentSingleFileTemplate?.replace(
+            '$KEY$',
+            input.key
+          ) || `${playlistName}.mp4`;
+        const args = `in=${input.filename},stream=video,out=${segmentName},playlist_name=${playlist}`;
+        cmdInputs.push(args);
+      } else {
+        const initSegment = join(playlistName, 'init.mp4');
+        const segmentTemplate = join(playlistName, '$Number$.m4s');
+
+        const args = `in=${input.filename},stream=video,init_segment=${initSegment},segment_template=${segmentTemplate},playlist_name=${playlist}`;
+        cmdInputs.push(args);
       }
-    } else if (input.type === 'audio') {
-      fileForAudio = input.filename;
     }
+  });
+
+  const inputForAudio = getInputForAudio(inputs, noImplicitAudio);
+
+  if (inputForAudio) {
+    const playlistName = `audio`;
+    const playlist = `${playlistName}.m3u8`;
+    const fileForAudio = inputForAudio.filename;
+    if (packageFormatOptions?.segmentSingleFile) {
+      // Ensure non-duplicate key, to ensure unique segment file name
+      const key = inputs.find(
+        (input) => input.type === 'video' && input.key == inputForAudio.key
+      )
+        ? `audio-${inputForAudio.key}`
+        : inputForAudio?.key;
+      const segmentName =
+        packageFormatOptions.segmentSingleFileTemplate?.replace('$KEY$', key) ||
+        `${playlistName}.mp4`;
+
+      cmdInputs.push(
+        `in=${fileForAudio},stream=audio,out=${segmentName},playlist_name=${playlist},hls_group_id=audio,hls_name=defaultaudio`
+      );
+    } else {
+      const segmentTemplate = 'audio/' + '$Number$.m4s';
+      cmdInputs.push(
+        `in=${fileForAudio},stream=audio,init_segment=${playlistName}/init.mp4,segment_template=${segmentTemplate},playlist_name=${playlist},hls_group_id=audio,hls_name=defaultaudio`
+      );
+    }
+  } else {
+    console.log('No audio input found');
   }
-  if (fileForAudio) {
+  if (packageFormatOptions?.dashOnly !== true) {
+    cmdInputs.push('--hls_master_playlist_output', 'index.m3u8');
+  }
+  if (packageFormatOptions?.hlsOnly !== true) {
     cmdInputs.push(
-      `in=${fileForAudio},stream=audio,init_segment=audio/init.mp4,segment_template=audio/$Number$.m4s,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=defaultaudio`
+      '--generate_static_live_mpd',
+      '--mpd_output',
+      'manifest.mpd'
     );
   }
-  return cmdInputs.concat([
-    '--hls_master_playlist_output',
-    'index.m3u8',
-    '--generate_static_live_mpd',
-    '--mpd_output',
-    'manifest.mpd'
-  ]);
+  if (packageFormatOptions?.segmentDuration) {
+    cmdInputs.push(
+      '--segment_duration',
+      packageFormatOptions.segmentDuration.toString()
+    );
+  }
+  return cmdInputs;
+}
+
+function getInputForAudio(
+  inputs: Input[],
+  noImplicitAudio: boolean
+): Input | undefined {
+  if (noImplicitAudio) {
+    return inputs.find((input) => input.type === 'audio');
+  }
+  return (
+    inputs.find((input) => input.type === 'audio') ||
+    inputs.find((input) => input.type === 'video')
+  );
 }
