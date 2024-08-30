@@ -47,8 +47,8 @@ describe('Test create shaka args', () => {
   it('Should use first video file as audio source if noImplicitAudio not set', async () => {
     const args = createShakaArgs(singleInputVideo, false);
     expect(args).toEqual([
-      'in=test.mp4,stream=video,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s,playlist_name=video-1.m3u8',
-      'in=test.mp4,stream=audio,init_segment=audio/init.mp4,segment_template=audio/$Number$.m4s,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=defaultaudio',
+      'in=test.mp4,stream=video,playlist_name=video-1.m3u8,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s',
+      'in=test.mp4,stream=audio,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=defaultaudio,init_segment=audio/init.mp4,segment_template=audio/$Number$.m4s',
       '--hls_master_playlist_output',
       'index.m3u8',
       '--generate_static_live_mpd',
@@ -60,7 +60,7 @@ describe('Test create shaka args', () => {
   it('Should not use first video file as audio source if noImplicitAudio is true', async () => {
     const args = createShakaArgs(singleInputVideo, true);
     expect(args).toEqual([
-      'in=test.mp4,stream=video,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s,playlist_name=video-1.m3u8',
+      'in=test.mp4,stream=video,playlist_name=video-1.m3u8,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s',
       '--hls_master_playlist_output',
       'index.m3u8',
       '--generate_static_live_mpd',
@@ -74,7 +74,7 @@ describe('Test create shaka args', () => {
       segmentDuration: 3.84
     });
     expect(args).toEqual([
-      'in=test.mp4,stream=video,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s,playlist_name=video-1.m3u8',
+      'in=test.mp4,stream=video,playlist_name=video-1.m3u8,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s',
       '--hls_master_playlist_output',
       'index.m3u8',
       '--generate_static_live_mpd',
@@ -91,7 +91,34 @@ describe('Test create shaka args', () => {
       segmentSingleFileTemplate: 'Container-$KEY$.mp4'
     });
     expect(args).toEqual([
-      'in=test.mp4,stream=video,out=Container-1.mp4,playlist_name=video-1.m3u8',
+      'in=test.mp4,stream=video,playlist_name=video-1.m3u8,out=Container-1.mp4',
+      '--hls_master_playlist_output',
+      'index.m3u8',
+      '--generate_static_live_mpd',
+      '--mpd_output',
+      'manifest.mpd'
+    ]);
+  });
+
+  it('Should set correct output path for stream if single file segment specified with audio', async () => {
+    const args = createShakaArgs(
+      [
+        ...singleInputVideo,
+        {
+          type: 'audio',
+          filename: 'audio.mp4',
+          key: '2'
+        }
+      ],
+      true,
+      {
+        segmentSingleFile: true,
+        segmentSingleFileTemplate: 'Container-$KEY$.mp4'
+      }
+    );
+    expect(args).toEqual([
+      'in=test.mp4,stream=video,playlist_name=video-1.m3u8,out=Container-1.mp4',
+      'in=audio.mp4,stream=audio,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=defaultaudio,out=Container-2.mp4',
       '--hls_master_playlist_output',
       'index.m3u8',
       '--generate_static_live_mpd',

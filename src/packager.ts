@@ -223,21 +223,27 @@ export function createShakaArgs(
     if (input.type === 'video') {
       const playlistName = `video-${input.key}`;
       const playlist = `${playlistName}.m3u8`;
+      const streamOptions = [
+        `in=${input.filename}`,
+        'stream=video',
+        `playlist_name=${playlist}`
+      ];
       if (packageFormatOptions?.segmentSingleFile) {
         const segmentName =
           packageFormatOptions.segmentSingleFileTemplate?.replace(
             '$KEY$',
             input.key
           ) || `${playlistName}.mp4`;
-        const args = `in=${input.filename},stream=video,out=${segmentName},playlist_name=${playlist}`;
-        cmdInputs.push(args);
+        streamOptions.push(`out=${segmentName}`);
       } else {
         const initSegment = join(playlistName, 'init.mp4');
         const segmentTemplate = join(playlistName, '$Number$.m4s');
-
-        const args = `in=${input.filename},stream=video,init_segment=${initSegment},segment_template=${segmentTemplate},playlist_name=${playlist}`;
-        cmdInputs.push(args);
+        streamOptions.push(
+          `init_segment=${initSegment}`,
+          `segment_template=${segmentTemplate}`
+        );
       }
+      cmdInputs.push(streamOptions.join(','));
     }
   });
 
@@ -247,6 +253,13 @@ export function createShakaArgs(
     const playlistName = `audio`;
     const playlist = `${playlistName}.m3u8`;
     const fileForAudio = inputForAudio.filename;
+    const streamOptions = [
+      `in=${fileForAudio}`,
+      'stream=audio',
+      `playlist_name=${playlist}`,
+      'hls_group_id=audio',
+      'hls_name=defaultaudio'
+    ];
     if (packageFormatOptions?.segmentSingleFile) {
       // Ensure non-duplicate key, to ensure unique segment file name
       const key = inputs.find(
@@ -257,16 +270,15 @@ export function createShakaArgs(
       const segmentName =
         packageFormatOptions.segmentSingleFileTemplate?.replace('$KEY$', key) ||
         `${playlistName}.mp4`;
-
-      cmdInputs.push(
-        `in=${fileForAudio},stream=audio,out=${segmentName},playlist_name=${playlist},hls_group_id=audio,hls_name=defaultaudio`
-      );
+      streamOptions.push(`out=${segmentName}`);
     } else {
       const segmentTemplate = 'audio/' + '$Number$.m4s';
-      cmdInputs.push(
-        `in=${fileForAudio},stream=audio,init_segment=${playlistName}/init.mp4,segment_template=${segmentTemplate},playlist_name=${playlist},hls_group_id=audio,hls_name=defaultaudio`
+      streamOptions.push(
+        `init_segment=${playlistName}/init.mp4`,
+        `segment_template=${segmentTemplate}`
       );
     }
+    cmdInputs.push(streamOptions.join(','));
   } else {
     console.log('No audio input found');
   }
