@@ -95,13 +95,13 @@ Run script locally
 Usage: cli [options]
 
 Run shaka-packager with source on S3 or locally, and output to S3 or local
-  
+
   Examples:
-    $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s s3://source-bucket/folder -d s3://output-bucket/folder 
+    $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s s3://source-bucket/folder -d s3://output-bucket/folder
     $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder
     $ shaka-packager-s3 -i a:2=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder --segment-single-file --segment-single-file-name 'Container$KEY$.mp4' --segment-duration 3.84
 
-  
+
 
 Options:
   -s, --source-folder [sourceFolder]                  Source folder URL, ignored if input uses absolute path (supported protocols: s3, local file)
