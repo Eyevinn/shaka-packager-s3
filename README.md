@@ -113,7 +113,7 @@ Options:
   --dash-only                                         Package only DASH format
   --hls-only                                          Package only HLS format
   --segment-single-file                               Use byte range addressing and a single segment file per stream
-  --segment-single-file-name [segmentSingleFileName]  Template for single segment file name, $INDEX$ will be replaced with stream index
+  --segment-single-file-name [segmentSingleFileName]  Template for single segment file name, $KEY$ will be replaced with stream key
   --segment-duration [segmentDuration]                Segment target duration
   -h, --help                                          display help for command
 
