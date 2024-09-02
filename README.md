@@ -92,18 +92,31 @@ Run script locally
 
 ```
 % node dist/cli.js -h
-Usage: cli [options] <source> <dest>
+Usage: cli [options]
 
-Run shaka-packager with source on S3 and output to S3
+Run shaka-packager with source on S3 or locally, and output to S3 or local
 
-Arguments:
-  source                         Source bucket URL (supported protocols: s3
-  dest                           Destination bucket URL (supported protocols: s3)
+  Examples:
+    $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s s3://source-bucket/folder -d s3://output-bucket/folder
+    $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder
+    $ shaka-packager-s3 -i a:2=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder --segment-single-file --segment-single-file-name 'Container$KEY$.mp4' --segment-duration 3.84
+
+
 
 Options:
-  -i, --input [inputOptions...]  Input options on the format: [a|v]:<key>=filename
-  --staging-dir <stagingDir>     Staging directory (default: /tmp/data)
-  -h, --help                     display help for command
+  -s, --source-folder [sourceFolder]                  Source folder URL, ignored if input uses absolute path (supported protocols: s3, local file)
+  -i, --input [inputOptions...]                       Input options on the format: [a|v]:<key>=filename
+  --staging-dir [stagingDir]                          Staging directory (default: /tmp/data)
+  --shaka-executable [shakaExecutable]                Path to shaka-packager executable, defaults to 'packager'. Can also be set with environment variable SHAKA_PACKAGER_EXECUTABLE.
+  --no-implicit-audio [noImplicitAudio]               Do not include audio unless audio input specified
+  -d, --destination-folder <dest>                     Destination folder URL (supported protocols: s3, local file). Defaults to CWD.
+  --dash-only                                         Package only DASH format
+  --hls-only                                          Package only HLS format
+  --segment-single-file                               Use byte range addressing and a single segment file per stream
+  --segment-single-file-name [segmentSingleFileName]  Template for single segment file name, $KEY$ will be replaced with stream key
+  --segment-duration [segmentDuration]                Segment target duration
+  -h, --help                                          display help for command
+
 ```
 
 ## Support

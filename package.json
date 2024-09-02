@@ -12,7 +12,8 @@
     "pretty": "prettier --check --ignore-unknown .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest --passWithNoTests",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push && git push --tags",
+    "start": "ts-node -T src/cli.ts"
   },
   "author": "Eyevinn Technology <work@eyevinn.se>",
   "license": "MIT",
