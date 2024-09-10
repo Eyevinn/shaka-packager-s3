@@ -1,1 +1,6 @@
-export { Input, doPackage, PackageOptions } from './packager';
+export {
+  Input,
+  doPackage,
+  PackageOptions,
+  PackageFormatOptions
+} from './packager';
