@@ -19,6 +19,8 @@ export interface PackageFormatOptions {
   segmentSingleFile?: boolean;
   segmentSingleFileTemplate?: string;
   segmentDuration?: number;
+  dashManifestName?: string;
+  hlsManifestName?: string;
 }
 
 export interface PackageOptions {
@@ -283,13 +285,16 @@ export function createShakaArgs(
     console.log('No audio input found');
   }
   if (packageFormatOptions?.dashOnly !== true) {
-    cmdInputs.push('--hls_master_playlist_output', 'index.m3u8');
+    cmdInputs.push(
+      '--hls_master_playlist_output',
+      packageFormatOptions?.hlsManifestName || 'index.m3u8'
+    );
   }
   if (packageFormatOptions?.hlsOnly !== true) {
     cmdInputs.push(
       '--generate_static_live_mpd',
       '--mpd_output',
-      'manifest.mpd'
+      packageFormatOptions?.dashManifestName || 'manifest.mpd'
     );
   }
   if (packageFormatOptions?.segmentDuration) {

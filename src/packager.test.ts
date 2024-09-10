@@ -126,4 +126,20 @@ describe('Test create shaka args', () => {
       'manifest.mpd'
     ]);
   });
+
+  it('Should set name of master playlist and manifest as specified', async () => {
+    const args = createShakaArgs(singleInputVideo, false, {
+      hlsManifestName: 'myHlsMasterPlaylist.m3u8',
+      dashManifestName: 'myDashManifest.mpd'
+    });
+    expect(args).toEqual([
+      'in=test.mp4,stream=video,playlist_name=video-1.m3u8,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s',
+      'in=test.mp4,stream=audio,playlist_name=audio.m3u8,hls_group_id=audio,hls_name=defaultaudio,init_segment=audio/init.mp4,segment_template=audio/$Number$.m4s',
+      '--hls_master_playlist_output',
+      'myHlsMasterPlaylist.m3u8',
+      '--generate_static_live_mpd',
+      '--mpd_output',
+      'myDashManifest.mpd'
+    ]);
+  });
 });
