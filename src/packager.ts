@@ -1,6 +1,6 @@
 import path, { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, rmdirSync, unlinkSync } from 'node:fs';
 import { readdir, mkdir } from 'node:fs/promises';
 import { toUrl, toUrlOrUndefined } from './util';
 import mv from 'mv';
@@ -59,6 +59,7 @@ export async function doPackage(opts: PackageOptions) {
     await removeDownloadedFiles(opts.inputs, stagingDir);
   }
   await uploadPackage(toUrl(opts.dest), stagingDir);
+  await cleanup(stagingDir);
 }
 
 export async function prepare(
@@ -70,6 +71,11 @@ export async function prepare(
     mkdirSync(jobDir, { recursive: true });
   }
   return jobDir;
+}
+
+export async function cleanup(stagingDir: string) {
+  console.log(`Cleaning up staging directory: ${stagingDir}`);
+  await rmdirSync(stagingDir);
 }
 
 export async function download(
@@ -112,7 +118,7 @@ export async function download(
       auth.push('-H');
       auth.push(`x-jwt: Bearer ${serviceAccessToken}`);
     }
-    const { status, stdout, stderr } = spawnSync(
+    const { status, stderr, error } = spawnSync(
       'curl',
       auth.concat([
         '-o',
@@ -120,10 +126,13 @@ export async function download(
         source.href.replace(/\/$/, '') + input.filename
       ])
     );
-    if (stderr) {
-      console.log(stderr.toString());
-    }
     if (status !== 0) {
+      if (error) {
+        console.error(`Download failed: ${error.message}`);
+      } else {
+        console.error(`Download failed with exit code ${status}`);
+        console.log(stderr.toString());
+      }
       throw new Error('Download failed');
     }
     console.log(`Downloaded ${input.filename} to ${localFilename}`);
@@ -164,6 +173,7 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
     return;
   }
   if (dest.protocol === 's3:') {
+    console.log(`Uploading package to ${dest.toString()}`);
     const { status, stderr, error } = spawnSync('aws', [
       's3',
       'cp',
