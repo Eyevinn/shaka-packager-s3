@@ -1,6 +1,6 @@
 import path, { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, unlinkSync } from 'node:fs';
 import { readdir, mkdir } from 'node:fs/promises';
 import { toUrl, toUrlOrUndefined } from './util';
 import mv from 'mv';
@@ -54,7 +54,12 @@ export async function doPackage(opts: PackageOptions) {
   validateOptios(opts);
   const stagingDir = await prepare(opts.stagingDir);
   await createPackage({ ...opts, stagingDir });
+  if (toUrl(opts.dest).protocol === 's3:') {
+    // We don't want to upload source files to S3
+    await removeDownloadedFiles(opts.inputs, stagingDir);
+  }
   await uploadPackage(toUrl(opts.dest), stagingDir);
+  await cleanup(stagingDir);
 }
 
 export async function prepare(
@@ -66,6 +71,11 @@ export async function prepare(
     mkdirSync(jobDir, { recursive: true });
   }
   return jobDir;
+}
+
+export async function cleanup(stagingDir: string) {
+  console.log(`Cleaning up staging directory: ${stagingDir}`);
+  await rmSync(stagingDir, { recursive: true, force: true });
 }
 
 export async function download(
@@ -108,25 +118,40 @@ export async function download(
       auth.push('-H');
       auth.push(`x-jwt: Bearer ${serviceAccessToken}`);
     }
-    const { status, stdout, stderr } = spawnSync(
+    const { status, stderr, error } = spawnSync(
       'curl',
       auth.concat([
-        '-v',
         '-o',
         localFilename,
         source.href.replace(/\/$/, '') + input.filename
       ])
     );
-    if (stderr) {
-      console.log(stderr.toString());
-    }
     if (status !== 0) {
+      if (error) {
+        console.error(`Download failed: ${error.message}`);
+      } else {
+        console.error(`Download failed with exit code ${status}`);
+        console.log(stderr.toString());
+      }
       throw new Error('Download failed');
     }
     console.log(`Downloaded ${input.filename} to ${localFilename}`);
     return localFilename;
   } else {
     throw new Error(`Unsupported protocol for download: ${source.protocol}`);
+  }
+}
+
+async function removeDownloadedFiles(inputs: Input[], stagingDir: string) {
+  console.log(`Removing downloaded files from ${stagingDir}`);
+  for (const input of inputs) {
+    const localFilename = join(stagingDir, path.basename(input.filename));
+    console.log(`Removing ${localFilename}`);
+    if (existsSync(localFilename)) {
+      unlinkSync(localFilename);
+    } else {
+      console.log(`File not found: ${localFilename}`);
+    }
   }
 }
 
@@ -148,7 +173,8 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
     return;
   }
   if (dest.protocol === 's3:') {
-    const { status, stderr } = spawnSync('aws', [
+    console.log(`Uploading package to ${dest.toString()}`);
+    const { status, stderr, error } = spawnSync('aws', [
       's3',
       'cp',
       '--recursive',
@@ -156,8 +182,11 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
       dest.toString()
     ]);
     if (status !== 0) {
-      if (stderr) {
-        console.log(stderr.toString());
+      if (error) {
+        console.error(`Upload failed: ${error.message}`);
+      } else {
+        console.error(`Upload failed with exit code ${status}`);
+        console.error(stderr.toString());
       }
       throw new Error('Upload failed');
     }
