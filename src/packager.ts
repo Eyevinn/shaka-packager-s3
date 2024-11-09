@@ -1,6 +1,6 @@
 import path, { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmdirSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, unlinkSync } from 'node:fs';
 import { readdir, mkdir } from 'node:fs/promises';
 import { toUrl, toUrlOrUndefined } from './util';
 import mv from 'mv';
@@ -75,7 +75,7 @@ export async function prepare(
 
 export async function cleanup(stagingDir: string) {
   console.log(`Cleaning up staging directory: ${stagingDir}`);
-  await rmdirSync(stagingDir);
+  await rmSync(stagingDir, { recursive: true, force: true });
 }
 
 export async function download(
