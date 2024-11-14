@@ -2,7 +2,7 @@ import path, { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, unlinkSync } from 'node:fs';
 import { readdir, mkdir } from 'node:fs/promises';
-import { toUrl, toUrlOrUndefined } from './util';
+import { createS3cmdArgs, toUrl, toUrlOrUndefined } from './util';
 import mv from 'mv';
 
 const DEFAULT_STAGING_DIR = '/tmp/data';
@@ -99,13 +99,11 @@ export async function download(
   if (source.protocol === 's3:') {
     const sourceFile = new URL(join(source.pathname, input.filename), source);
     const localFilename = join(stagingDir, input.filename);
-    const { status, stderr } = spawnSync('aws', [
-      's3',
-      endpointUrl ? `--endpoint-url=${endpointUrl}` : '',
-      'cp',
-      sourceFile.toString(),
-      localFilename
-    ]);
+    const args = createS3cmdArgs(
+      ['cp', sourceFile.toString(), localFilename],
+      endpointUrl
+    );
+    const { status, stderr } = spawnSync('aws', args);
     if (status !== 0) {
       if (stderr) {
         console.log(stderr.toString());
@@ -181,14 +179,11 @@ export async function uploadPackage(
   }
   if (dest.protocol === 's3:') {
     console.log(`Uploading package to ${dest.toString()}`);
-    const { status, stderr, error } = spawnSync('aws', [
-      's3',
-      s3EndpointUrl ? `--endpoint-url=${s3EndpointUrl}` : '',
-      'cp',
-      '--recursive',
-      stagingDir,
-      dest.toString()
-    ]);
+    const args = createS3cmdArgs(
+      ['cp', '--recursive', stagingDir, dest.toString()],
+      s3EndpointUrl
+    );
+    const { status, stderr, error } = spawnSync('aws', args);
     if (status !== 0) {
       if (error) {
         console.error(`Upload failed: ${error.message}`);
