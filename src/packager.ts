@@ -32,9 +32,10 @@ export interface PackageOptions {
   packageFormatOptions?: PackageFormatOptions;
   shakaExecutable?: string;
   serviceAccessToken?: string;
+  s3EndpointUrl?: string;
 }
 
-function validateOptios(opts: PackageOptions) {
+function validateOptions(opts: PackageOptions) {
   if (
     opts?.packageFormatOptions?.hlsOnly &&
     opts?.packageFormatOptions?.dashOnly
@@ -51,14 +52,14 @@ function validateOptios(opts: PackageOptions) {
 }
 
 export async function doPackage(opts: PackageOptions) {
-  validateOptios(opts);
+  validateOptions(opts);
   const stagingDir = await prepare(opts.stagingDir);
   await createPackage({ ...opts, stagingDir });
   if (toUrl(opts.dest).protocol === 's3:') {
     // We don't want to upload source files to S3
     await removeDownloadedFiles(opts.inputs, stagingDir);
   }
-  await uploadPackage(toUrl(opts.dest), stagingDir);
+  await uploadPackage(toUrl(opts.dest), stagingDir, opts.s3EndpointUrl);
   await cleanup(stagingDir);
 }
 
@@ -82,7 +83,8 @@ export async function download(
   input: Input,
   source?: URL,
   stagingDir?: string,
-  serviceAccessToken?: string
+  serviceAccessToken?: string,
+  endpointUrl?: string
 ): Promise<string> {
   if (!source) {
     return input.filename;
@@ -99,6 +101,7 @@ export async function download(
     const localFilename = join(stagingDir, input.filename);
     const { status, stderr } = spawnSync('aws', [
       's3',
+      endpointUrl ? `--endpoint-url=${endpointUrl}` : '',
       'cp',
       sourceFile.toString(),
       localFilename
@@ -161,7 +164,11 @@ async function moveFile(src: string, dest: string) {
   });
 }
 
-export async function uploadPackage(dest: URL, stagingDir: string) {
+export async function uploadPackage(
+  dest: URL,
+  stagingDir: string,
+  s3EndpointUrl?: string
+) {
   if (!dest.protocol || dest.protocol === 'file:') {
     await mkdir(dest.pathname, { recursive: true });
     const files = await readdir(stagingDir);
@@ -176,6 +183,7 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
     console.log(`Uploading package to ${dest.toString()}`);
     const { status, stderr, error } = spawnSync('aws', [
       's3',
+      s3EndpointUrl ? `--endpoint-url=${s3EndpointUrl}` : '',
       'cp',
       '--recursive',
       stagingDir,
@@ -197,8 +205,14 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
 }
 
 export async function createPackage(opts: PackageOptions) {
-  const { inputs, source, stagingDir, noImplicitAudio, serviceAccessToken } =
-    opts;
+  const {
+    inputs,
+    source,
+    stagingDir,
+    noImplicitAudio,
+    serviceAccessToken,
+    s3EndpointUrl
+  } = opts;
   const sourceUrl = toUrlOrUndefined(source);
   const downloadedInputs: Input[] = await Promise.all(
     inputs.map(async (input) => {
@@ -206,7 +220,8 @@ export async function createPackage(opts: PackageOptions) {
         input,
         sourceUrl,
         stagingDir,
-        serviceAccessToken
+        serviceAccessToken,
+        s3EndpointUrl
       );
       return {
         ...input,
