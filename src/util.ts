@@ -12,3 +12,14 @@ export function toUrl(url: string) {
     ? new URL(url)
     : new URL(`file://${path.resolve(url)}`);
 }
+
+export function createS3cmdArgs(
+  cmdArgs: string[],
+  s3EndpointUrl?: string
+): string[] {
+  const args = ['s3'];
+  if (s3EndpointUrl) {
+    args.push(`--endpoint-url=${s3EndpointUrl}`);
+  }
+  return args.concat(cmdArgs);
+}

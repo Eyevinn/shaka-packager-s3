@@ -54,6 +54,7 @@ cli
     '-d, --destination-folder <dest>',
     'Destination folder URL (supported protocols: s3, local file). Defaults to CWD.'
   )
+  .option('--endpoint-url [s3EndpointUrl]', 'S3 endpoint URL')
   .option('--dash-only', 'Package only DASH format')
   .option('--hls-only', 'Package only HLS format')
   .option(
@@ -94,6 +95,7 @@ cli
       );
       await doPackage({
         dest: options.destinationFolder || '.',
+        s3EndpointUrl: options.s3EndpointUrl,
         source: options.sourceFolder,
         inputs: inputOptions,
         stagingDir: options.stagingDir,

@@ -2,7 +2,7 @@ import path, { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, unlinkSync } from 'node:fs';
 import { readdir, mkdir } from 'node:fs/promises';
-import { toUrl, toUrlOrUndefined } from './util';
+import { createS3cmdArgs, toUrl, toUrlOrUndefined } from './util';
 import mv from 'mv';
 
 const DEFAULT_STAGING_DIR = '/tmp/data';
@@ -32,9 +32,10 @@ export interface PackageOptions {
   packageFormatOptions?: PackageFormatOptions;
   shakaExecutable?: string;
   serviceAccessToken?: string;
+  s3EndpointUrl?: string;
 }
 
-function validateOptios(opts: PackageOptions) {
+function validateOptions(opts: PackageOptions) {
   if (
     opts?.packageFormatOptions?.hlsOnly &&
     opts?.packageFormatOptions?.dashOnly
@@ -51,14 +52,14 @@ function validateOptios(opts: PackageOptions) {
 }
 
 export async function doPackage(opts: PackageOptions) {
-  validateOptios(opts);
+  validateOptions(opts);
   const stagingDir = await prepare(opts.stagingDir);
   await createPackage({ ...opts, stagingDir });
   if (toUrl(opts.dest).protocol === 's3:') {
     // We don't want to upload source files to S3
     await removeDownloadedFiles(opts.inputs, stagingDir);
   }
-  await uploadPackage(toUrl(opts.dest), stagingDir);
+  await uploadPackage(toUrl(opts.dest), stagingDir, opts.s3EndpointUrl);
   await cleanup(stagingDir);
 }
 
@@ -82,7 +83,8 @@ export async function download(
   input: Input,
   source?: URL,
   stagingDir?: string,
-  serviceAccessToken?: string
+  serviceAccessToken?: string,
+  endpointUrl?: string
 ): Promise<string> {
   if (!source) {
     return input.filename;
@@ -97,12 +99,11 @@ export async function download(
   if (source.protocol === 's3:') {
     const sourceFile = new URL(join(source.pathname, input.filename), source);
     const localFilename = join(stagingDir, input.filename);
-    const { status, stderr } = spawnSync('aws', [
-      's3',
-      'cp',
-      sourceFile.toString(),
-      localFilename
-    ]);
+    const args = createS3cmdArgs(
+      ['cp', sourceFile.toString(), localFilename],
+      endpointUrl
+    );
+    const { status, stderr } = spawnSync('aws', args);
     if (status !== 0) {
       if (stderr) {
         console.log(stderr.toString());
@@ -161,7 +162,11 @@ async function moveFile(src: string, dest: string) {
   });
 }
 
-export async function uploadPackage(dest: URL, stagingDir: string) {
+export async function uploadPackage(
+  dest: URL,
+  stagingDir: string,
+  s3EndpointUrl?: string
+) {
   if (!dest.protocol || dest.protocol === 'file:') {
     await mkdir(dest.pathname, { recursive: true });
     const files = await readdir(stagingDir);
@@ -174,13 +179,11 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
   }
   if (dest.protocol === 's3:') {
     console.log(`Uploading package to ${dest.toString()}`);
-    const { status, stderr, error } = spawnSync('aws', [
-      's3',
-      'cp',
-      '--recursive',
-      stagingDir,
-      dest.toString()
-    ]);
+    const args = createS3cmdArgs(
+      ['cp', '--recursive', stagingDir, dest.toString()],
+      s3EndpointUrl
+    );
+    const { status, stderr, error } = spawnSync('aws', args);
     if (status !== 0) {
       if (error) {
         console.error(`Upload failed: ${error.message}`);
@@ -197,8 +200,14 @@ export async function uploadPackage(dest: URL, stagingDir: string) {
 }
 
 export async function createPackage(opts: PackageOptions) {
-  const { inputs, source, stagingDir, noImplicitAudio, serviceAccessToken } =
-    opts;
+  const {
+    inputs,
+    source,
+    stagingDir,
+    noImplicitAudio,
+    serviceAccessToken,
+    s3EndpointUrl
+  } = opts;
   const sourceUrl = toUrlOrUndefined(source);
   const downloadedInputs: Input[] = await Promise.all(
     inputs.map(async (input) => {
@@ -206,7 +215,8 @@ export async function createPackage(opts: PackageOptions) {
         input,
         sourceUrl,
         stagingDir,
-        serviceAccessToken
+        serviceAccessToken,
+        s3EndpointUrl
       );
       return {
         ...input,
