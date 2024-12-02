@@ -183,7 +183,7 @@ export async function uploadPackage(
       ['cp', '--recursive', stagingDir, dest.toString()],
       s3EndpointUrl
     );
-    const { status, stderr, error } = spawnSync('aws', args, {
+    const { status, error } = spawnSync('aws', args, {
       stdio: 'ignore'
     });
     if (status !== 0) {
@@ -191,7 +191,6 @@ export async function uploadPackage(
         console.error(`Upload failed: ${error.message}`);
       } else {
         console.error(`Upload failed with exit code ${status}`);
-        console.error(stderr.toString());
       }
       throw new Error('Upload failed');
     }
