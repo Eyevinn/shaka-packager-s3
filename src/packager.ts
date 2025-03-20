@@ -45,7 +45,7 @@ function validateOptions(opts: PackageOptions) {
   if (
     opts?.packageFormatOptions?.segmentSingleFileTemplate &&
     opts?.packageFormatOptions?.segmentSingleFileTemplate.indexOf('$KEY$') ===
-    -1
+      -1
   ) {
     throw new Error('segmentSingleFileTemplate must contain $KEY$');
   }
@@ -86,8 +86,8 @@ export async function download(
   serviceAccessToken?: string,
   endpointUrl?: string
 ): Promise<string> {
-  let sourceURL
-  let inputFileURL
+  let sourceURL;
+  let inputFileURL;
   if (input.filename.includes('://')) {
     console.log('input.filename has an absolute URL:', input.filename);
     inputFileURL = toUrlOrUndefined(input.filename);
@@ -109,11 +109,17 @@ export async function download(
   if (sourceURL.protocol === 's3:') {
     let sourceFileS3URL;
     if (inputFileURL) {
-      sourceFileS3URL = inputFileURL; 
+      sourceFileS3URL = inputFileURL;
     } else {
-      sourceFileS3URL = new URL(join(sourceURL.pathname, input.filename), sourceURL);
+      sourceFileS3URL = new URL(
+        join(sourceURL.pathname, input.filename),
+        sourceURL
+      );
     }
-    const localFilename = join(stagingDir, inputFileURL ? path.basename(input.filename) : input.filename);
+    const localFilename = join(
+      stagingDir,
+      inputFileURL ? path.basename(input.filename) : input.filename
+    );
     const args = createS3cmdArgs(
       ['cp', sourceFileS3URL.toString(), localFilename],
       endpointUrl
@@ -127,15 +133,22 @@ export async function download(
     }
     console.log(`Downloaded ${input.filename} to ${localFilename}`);
     return localFilename;
-  } else if (sourceURL.protocol === 'http:' || sourceURL.protocol === 'https:') {
+  } else if (
+    sourceURL.protocol === 'http:' ||
+    sourceURL.protocol === 'https:'
+  ) {
     let sourceFileURL;
     if (inputFileURL) {
       sourceFileURL = inputFileURL;
     } else {
-      const baseUrl = sourceURL.href.endsWith('/') ? sourceURL.href : sourceURL.href + '/';
-      const filePath = input.filename.startsWith('/') ? input.filename.substring(1) : input.filename;
+      const baseUrl = sourceURL.href.endsWith('/')
+        ? sourceURL.href
+        : sourceURL.href + '/';
+      const filePath = input.filename.startsWith('/')
+        ? input.filename.substring(1)
+        : input.filename;
       sourceFileURL = new URL(filePath, baseUrl);
-    } 
+    }
     const localFilename = join(stagingDir, path.basename(input.filename));
     const auth: string[] = [];
     if (serviceAccessToken) {
@@ -144,11 +157,7 @@ export async function download(
     }
     const { status, stderr, error } = spawnSync(
       'curl',
-      auth.concat([
-        '-o',
-        localFilename,
-        sourceFileURL.toString()
-      ])
+      auth.concat(['-o', localFilename, sourceFileURL.toString()])
     );
     if (status !== 0) {
       if (error) {
@@ -174,7 +183,10 @@ async function removeDownloadedFiles(inputs: Input[], stagingDir: string) {
     if (input.filename.includes('://')) {
       inputFileURL = toUrlOrUndefined(input.filename);
     }
-    const localFilename = join(stagingDir,  inputFileURL ? path.basename(input.filename) : input.filename);
+    const localFilename = join(
+      stagingDir,
+      inputFileURL ? path.basename(input.filename) : input.filename
+    );
     console.log(`Removing ${localFilename}`);
     if (existsSync(localFilename)) {
       unlinkSync(localFilename);
@@ -186,7 +198,7 @@ async function removeDownloadedFiles(inputs: Input[], stagingDir: string) {
 
 async function moveFile(src: string, dest: string) {
   return new Promise((resolve, reject) => {
-    mv(src, dest, (err: any) => (err ? reject(err) : resolve(dest)));
+    mv(src, dest, (err) => (err ? reject(err) : resolve(dest)));
   });
 }
 
