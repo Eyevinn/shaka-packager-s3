@@ -86,21 +86,42 @@ export async function download(
   serviceAccessToken?: string,
   endpointUrl?: string
 ): Promise<string> {
-  if (!source) {
+  let sourceURL;
+  let inputFileURL;
+  if (input.filename.includes('://')) {
+    console.log('input.filename has an absolute URL:', input.filename);
+    inputFileURL = toUrlOrUndefined(input.filename);
+  }
+
+  if (inputFileURL) {
+    sourceURL = inputFileURL;
+  } else if (source) {
+    sourceURL = source;
+  } else {
     return input.filename;
   }
-  if (!source.protocol || source.protocol === 'file:') {
-    return path.resolve(source?.pathname || '.', input.filename);
+  if (!sourceURL.protocol || sourceURL.protocol === 'file:') {
+    return path.resolve(sourceURL.pathname || '.', input.filename);
   }
   if (!stagingDir) {
     throw new Error('Staging directory required for remote download');
   }
-
-  if (source.protocol === 's3:') {
-    const sourceFile = new URL(join(source.pathname, input.filename), source);
-    const localFilename = join(stagingDir, input.filename);
+  if (sourceURL.protocol === 's3:') {
+    let sourceFileS3URL;
+    if (inputFileURL) {
+      sourceFileS3URL = inputFileURL;
+    } else {
+      sourceFileS3URL = new URL(
+        join(sourceURL.pathname, input.filename),
+        sourceURL
+      );
+    }
+    const localFilename = join(
+      stagingDir,
+      inputFileURL ? path.basename(input.filename) : input.filename
+    );
     const args = createS3cmdArgs(
-      ['cp', sourceFile.toString(), localFilename],
+      ['cp', sourceFileS3URL.toString(), localFilename],
       endpointUrl
     );
     const { status, stderr } = spawnSync('aws', args);
@@ -112,7 +133,22 @@ export async function download(
     }
     console.log(`Downloaded ${input.filename} to ${localFilename}`);
     return localFilename;
-  } else if (source.protocol === 'http:' || source.protocol === 'https:') {
+  } else if (
+    sourceURL.protocol === 'http:' ||
+    sourceURL.protocol === 'https:'
+  ) {
+    let sourceFileURL;
+    if (inputFileURL) {
+      sourceFileURL = inputFileURL;
+    } else {
+      const baseUrl = sourceURL.href.endsWith('/')
+        ? sourceURL.href
+        : sourceURL.href + '/';
+      const filePath = input.filename.startsWith('/')
+        ? input.filename.substring(1)
+        : input.filename;
+      sourceFileURL = new URL(filePath, baseUrl);
+    }
     const localFilename = join(stagingDir, path.basename(input.filename));
     const auth: string[] = [];
     if (serviceAccessToken) {
@@ -121,11 +157,7 @@ export async function download(
     }
     const { status, stderr, error } = spawnSync(
       'curl',
-      auth.concat([
-        '-o',
-        localFilename,
-        source.href.replace(/\/$/, '') + input.filename
-      ])
+      auth.concat(['-o', localFilename, sourceFileURL.toString()])
     );
     if (status !== 0) {
       if (error) {
@@ -139,14 +171,22 @@ export async function download(
     console.log(`Downloaded ${input.filename} to ${localFilename}`);
     return localFilename;
   } else {
-    throw new Error(`Unsupported protocol for download: ${source.protocol}`);
+    const protocol = sourceURL.protocol;
+    throw new Error(`Unsupported protocol for download: ${protocol}`);
   }
 }
 
 async function removeDownloadedFiles(inputs: Input[], stagingDir: string) {
   console.log(`Removing downloaded files from ${stagingDir}`);
   for (const input of inputs) {
-    const localFilename = join(stagingDir, path.basename(input.filename));
+    let inputFileURL;
+    if (input.filename.includes('://')) {
+      inputFileURL = toUrlOrUndefined(input.filename);
+    }
+    const localFilename = join(
+      stagingDir,
+      inputFileURL ? path.basename(input.filename) : input.filename
+    );
     console.log(`Removing ${localFilename}`);
     if (existsSync(localFilename)) {
       unlinkSync(localFilename);

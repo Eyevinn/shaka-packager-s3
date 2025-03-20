@@ -1,4 +1,21 @@
-import { createShakaArgs, doPackage, Input } from './packager';
+import { createShakaArgs, doPackage, Input, download } from './packager';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
+import { URL } from 'url';
+
+jest.mock('node:child_process', () => ({
+  spawnSync: jest.fn()
+}));
+
+jest.mock('node:fs', () => ({
+  existsSync: jest.fn().mockReturnValue(true),
+  mkdirSync: jest.fn(),
+  rmSync: jest.fn(),
+  unlinkSync: jest.fn()
+}));
+
+const mockedSpawnSync = spawnSync as jest.MockedFunction<typeof spawnSync>;
 
 const singleInputVideo = [
   {
@@ -7,6 +24,411 @@ const singleInputVideo = [
     key: '1'
   } as Input
 ];
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockedSpawnSync.mockReturnValue({
+    status: 0,
+    stdout: Buffer.from(''),
+    stderr: Buffer.from(''),
+    pid: 123,
+    output: [],
+    signal: null
+  });
+});
+
+describe('Test download function', () => {
+  const stagingDir = '/tmp/test-staging';
+
+  beforeEach(() => {
+    (existsSync as jest.Mock).mockReturnValue(false);
+    mkdirSync(stagingDir, { recursive: true });
+  });
+
+  it('should return the filename if no source or URL in filename', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'local.mp4',
+      key: '1'
+    };
+    const result = await download(input);
+    expect(result).toBe('local.mp4');
+    expect(spawnSync).not.toHaveBeenCalled();
+  });
+
+  it('should resolve path for file protocol', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'local.mp4',
+      key: '1'
+    };
+    const source = new URL('file:///path/to/source/');
+    const result = await download(input, source);
+    expect(result).toBe(path.resolve('/path/to/source/', 'local.mp4'));
+    expect(spawnSync).not.toHaveBeenCalled();
+  });
+
+  it('should throw error if stagingDir is missing for remote download', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'remote.mp4',
+      key: '1'
+    };
+    const source = new URL('https://example.com/');
+
+    await expect(download(input, source)).rejects.toThrow(
+      'Staging directory required for remote download'
+    );
+    expect(spawnSync).not.toHaveBeenCalled();
+  });
+
+  it('should download from S3 source', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'video.mp4',
+      key: '1'
+    };
+    const source = new URL('s3://bucket/path/');
+    const endpointUrl = 'https://s3.example.com';
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    const result = await download(
+      input,
+      source,
+      stagingDir,
+      undefined,
+      endpointUrl
+    );
+
+    expect(result).toBe(path.join(stagingDir, 'video.mp4'));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'aws',
+      expect.arrayContaining(['cp', 's3://bucket/path/video.mp4'])
+    );
+  });
+
+  it('should handle S3 download failure', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'video.mp4',
+      key: '1'
+    };
+    const source = new URL('s3://bucket/path/');
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 1,
+      stderr: Buffer.from('Access denied'),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    await expect(download(input, source, stagingDir)).rejects.toThrow(
+      'Download failed'
+    );
+    expect(spawnSync).toHaveBeenCalled();
+  });
+
+  it('should download from HTTP source', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'video.mp4',
+      key: '1'
+    };
+    const source = new URL('https://example.com/videos/');
+    const token = 'test-token';
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    const result = await download(input, source, stagingDir, token);
+
+    expect(result).toBe(path.join(stagingDir, 'video.mp4'));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'curl',
+      expect.arrayContaining([
+        '-H',
+        'x-jwt: Bearer test-token',
+        '-o',
+        path.join(stagingDir, 'video.mp4'),
+        'https://example.com/videos/video.mp4'
+      ])
+    );
+  });
+
+  it('should handle HTTP download failure', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'video.mp4',
+      key: '1'
+    };
+    const source = new URL('https://example.com/videos/');
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 1,
+      stderr: Buffer.from('404 Not Found'),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null,
+      error: new Error('404 Not Found')
+    });
+
+    await expect(download(input, source, stagingDir)).rejects.toThrow(
+      'Download failed'
+    );
+    expect(spawnSync).toHaveBeenCalled();
+  });
+
+  it('should handle URL in filename', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'https://cdn.example.com/videos/special.mp4',
+      key: '1'
+    };
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    const result = await download(input, undefined, stagingDir);
+
+    expect(result).toBe(path.join(stagingDir, 'special.mp4'));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'curl',
+      expect.arrayContaining([
+        '-o',
+        path.join(stagingDir, 'special.mp4'),
+        'https://cdn.example.com/videos/special.mp4'
+      ])
+    );
+  });
+
+  it('should throw error for unsupported protocol', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'video.mp4',
+      key: '1'
+    };
+    const source = new URL('ftp://example.com/');
+
+    await expect(download(input, source, stagingDir)).rejects.toThrow(
+      'Unsupported protocol for download: ftp:'
+    );
+    expect(spawnSync).not.toHaveBeenCalled();
+  });
+
+  it('should download from S3 with custom endpoint', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'video.mp4',
+      key: '1'
+    };
+    const source = new URL('s3://my-bucket/videos/');
+    const endpointUrl = 'https://custom-s3.example.com';
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    const result = await download(
+      input,
+      source,
+      stagingDir,
+      undefined,
+      endpointUrl
+    );
+
+    expect(result).toBe(path.join(stagingDir, 'video.mp4'));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'aws',
+      expect.arrayContaining([
+        's3',
+        '--endpoint-url=' + endpointUrl,
+        'cp',
+        's3://my-bucket/videos/video.mp4',
+        path.join(stagingDir, 'video.mp4')
+      ])
+    );
+  });
+
+  it('should handle S3 URL in filename', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 's3://direct-bucket/path/to/video.mp4',
+      key: '1'
+    };
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    const result = await download(input, undefined, stagingDir);
+
+    expect(result).toBe(path.join(stagingDir, 'video.mp4'));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'aws',
+      expect.arrayContaining([
+        'cp',
+        's3://direct-bucket/path/to/video.mp4',
+        path.join(stagingDir, 'video.mp4')
+      ])
+    );
+  });
+
+  it('should prioritize URL in filename over source URL for S3', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 's3://override-bucket/videos/special.mp4',
+      key: '1'
+    };
+    const source = new URL('s3://default-bucket/path/');
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    const result = await download(input, source, stagingDir);
+
+    expect(result).toBe(path.join(stagingDir, 'special.mp4'));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'aws',
+      expect.arrayContaining([
+        'cp',
+        's3://override-bucket/videos/special.mp4',
+        path.join(stagingDir, 'special.mp4')
+      ])
+    );
+  });
+
+  it('should use custom S3 endpoint with URL in filename', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 's3://my-bucket/videos/video.mp4',
+      key: '1'
+    };
+    const endpointUrl = 'https://private-s3.company.com';
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    const result = await download(
+      input,
+      undefined,
+      stagingDir,
+      undefined,
+      endpointUrl
+    );
+
+    expect(result).toBe(path.join(stagingDir, 'video.mp4'));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'aws',
+      expect.arrayContaining([
+        's3',
+        '--endpoint-url=' + endpointUrl,
+        'cp',
+        's3://my-bucket/videos/video.mp4',
+        path.join(stagingDir, 'video.mp4')
+      ])
+    );
+  });
+
+  it('should handle complex S3 paths with subdirectories', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'nested/path/video.mp4',
+      key: '1'
+    };
+    const source = new URL('s3://my-bucket/base/path/');
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    const result = await download(input, source, stagingDir);
+
+    expect(result).toBe(path.join(stagingDir, 'nested/path/video.mp4'));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'aws',
+      expect.arrayContaining([
+        'cp',
+        's3://my-bucket/base/path/nested/path/video.mp4',
+        path.join(stagingDir, 'nested/path/video.mp4')
+      ])
+    );
+  });
+
+  it('should handle S3 download with detailed error message', async () => {
+    const input: Input = {
+      type: 'video' as const,
+      filename: 'video.mp4',
+      key: '1'
+    };
+    const source = new URL('s3://my-bucket/videos/');
+
+    mockedSpawnSync.mockReturnValueOnce({
+      status: 1,
+      stderr: Buffer.from(
+        'An error occurred (NoSuchBucket) when calling the GetObject operation: The specified bucket does not exist'
+      ),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    await expect(download(input, source, stagingDir)).rejects.toThrow(
+      'Download failed'
+    );
+    expect(spawnSync).toHaveBeenCalled();
+  });
+});
 
 describe('Test doPackage', () => {
   it('Both hlsOnly and dashOnly specified, throws error', async () => {
