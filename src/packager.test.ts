@@ -4,12 +4,10 @@ import path from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import { URL } from 'url';
 
-// Mock child_process.spawnSync
 jest.mock('node:child_process', () => ({
   spawnSync: jest.fn()
 }));
 
-// Mock fs functions
 jest.mock('node:fs', () => ({
   existsSync: jest.fn().mockReturnValue(true),
   mkdirSync: jest.fn(),
@@ -27,10 +25,8 @@ const singleInputVideo = [
   } as Input
 ];
 
-// Setup and teardown
 beforeEach(() => {
   jest.clearAllMocks();
-  // Default successful response for spawnSync
   mockedSpawnSync.mockReturnValue({
     status: 0,
     stdout: Buffer.from(''),
@@ -45,7 +41,6 @@ describe('Test download function', () => {
   const stagingDir = '/tmp/test-staging';
   
   beforeEach(() => {
-    // Ensure staging directory exists for tests
     (existsSync as jest.Mock).mockReturnValue(false);
     mkdirSync(stagingDir, { recursive: true });
   });
@@ -193,7 +188,6 @@ describe('Test download function', () => {
     expect(spawnSync).not.toHaveBeenCalled();
   });
 
-  // Additional S3 tests
   it('should download from S3 with custom endpoint', async () => {
     const input: Input = { type: 'video' as const, filename: 'video.mp4', key: '1' };
     const source = new URL('s3://my-bucket/videos/');
