@@ -118,6 +118,7 @@ Options:
   --segment-single-file                               Use byte range addressing and a single segment file per stream
   --segment-single-file-name [segmentSingleFileName]  Template for single segment file name, $KEY$ will be replaced with stream key
   --segment-duration [segmentDuration]                Segment target duration
+  --ts-output                                         Output TS (.ts for video, .acc for audio) segments instead of fragmented MP4 (CMAF)
   -h, --help                                          display help for command
 
 ```
