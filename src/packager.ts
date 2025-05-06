@@ -21,6 +21,7 @@ export interface PackageFormatOptions {
   segmentDuration?: number;
   dashManifestName?: string;
   hlsManifestName?: string;
+  tsOutput?: boolean;
 }
 
 export interface PackageOptions {
@@ -318,12 +319,17 @@ export function createShakaArgs(
           ) || `${playlistName}.mp4`;
         streamOptions.push(`out=${segmentName}`);
       } else {
-        const initSegment = join(playlistName, 'init.mp4');
-        const segmentTemplate = join(playlistName, '$Number$.m4s');
-        streamOptions.push(
-          `init_segment=${initSegment}`,
-          `segment_template=${segmentTemplate}`
-        );
+        if (packageFormatOptions?.tsOutput) {
+          const segmentTemplate = join(playlistName, '$Number$.ts');
+          streamOptions.push(`segment_template=${segmentTemplate}`);
+        } else {
+          const initSegment = join(playlistName, 'init.mp4');
+          const segmentTemplate = join(playlistName, '$Number$.m4s');
+          streamOptions.push(
+            `init_segment=${initSegment}`,
+            `segment_template=${segmentTemplate}`
+          );
+        }
       }
       cmdInputs.push(streamOptions.join(','));
     }
@@ -354,11 +360,18 @@ export function createShakaArgs(
         `${playlistName}.mp4`;
       streamOptions.push(`out=${segmentName}`);
     } else {
-      const segmentTemplate = 'audio/' + '$Number$.m4s';
-      streamOptions.push(
-        `init_segment=${playlistName}/init.mp4`,
-        `segment_template=${segmentTemplate}`
-      );
+      const segmentTemplate = packageFormatOptions?.tsOutput
+        ? 'audio/$Number$.aac'
+        : 'audio/$Number$.m4s';
+
+      if (packageFormatOptions?.tsOutput) {
+        streamOptions.push(`segment_template=${segmentTemplate}`);
+      } else {
+        streamOptions.push(
+          `init_segment=${playlistName}/init.mp4`,
+          `segment_template=${segmentTemplate}`
+        );
+      }
     }
     cmdInputs.push(streamOptions.join(','));
   } else {
