@@ -58,6 +58,10 @@ cli
   .option('--dash-only', 'Package only DASH format')
   .option('--hls-only', 'Package only HLS format')
   .option(
+    '--ts-output',
+    'Output TS (.ts for video, .acc for audio) segments instead of fragmented MP4'
+  )
+  .option(
     '--segment-single-file',
     'Use byte range addressing and a single segment file per stream'
   )
@@ -103,6 +107,7 @@ cli
         packageFormatOptions: {
           hlsOnly: options.hlsOnly,
           dashOnly: options.dashOnly,
+          tsOutput: options.tsOutput,
           segmentSingleFile: options.segmentSingleFile,
           segmentSingleFileTemplate: options.segmentSingleFileName,
           segmentDuration: options.segmentDuration
