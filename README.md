@@ -107,7 +107,7 @@ Run shaka-packager with source on S3 or locally, and output to S3 or local
 
 Options:
   -s, --source-folder [sourceFolder]                  Source folder URL, ignored if input uses absolute path (supported protocols: s3, local file)
-  -i, --input [inputOptions...]                       Input options on the format: [a|v]:<key>=filename
+  -i, --input [inputOptions...]                       Input options on the format: [a|v|t]:<key>=<filename>[:hlsName]
   --staging-dir [stagingDir]                          Staging directory (default: /tmp/data)
   --shaka-executable [shakaExecutable]                Path to shaka-packager executable, defaults to 'packager'. Can also be set with environment variable SHAKA_PACKAGER_EXECUTABLE.
   --no-implicit-audio [noImplicitAudio]               Do not include audio unless audio input specified
@@ -118,7 +118,7 @@ Options:
   --segment-single-file                               Use byte range addressing and a single segment file per stream
   --segment-single-file-name [segmentSingleFileName]  Template for single segment file name, $KEY$ will be replaced with stream key
   --segment-duration [segmentDuration]                Segment target duration
-  --ts-output                                         Output TS (.ts for video, .acc for audio) segments instead of fragmented MP4 (CMAF)
+  --ts-output                                         Output TS (.ts for video, .aac for audio) segments instead of fragmented MP4 (CMAF)
   -h, --help                                          display help for command
 
 ```
