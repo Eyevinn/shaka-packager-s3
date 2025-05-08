@@ -8,10 +8,17 @@ function parseInputOptions(inputOptions: string[]): Input[] | undefined {
     const inputs: Input[] = [];
     inputOptions.map((inputOption) => {
       const [type, keyAndFilename] = inputOption.split(':');
-      const [key, filename] = keyAndFilename.split('=');
+      const [key, filenameAndHlsName] = keyAndFilename.split('=');
+      const [filename, hlsName] = filenameAndHlsName.split(':');
       if (type && key && filename) {
-        const inputType = type === 'a' ? 'audio' : 'video';
-        inputs.push({ type: inputType, key, filename });
+        const inputType: 'audio' | 'video' | 'text' =
+          type === 'a' ? 'audio' : type === 't' ? 'text' : 'video';
+
+        const input: Input = { type: inputType, key, filename };
+        if (inputType === 'text' && hlsName) {
+          input.hlsName = hlsName;
+        }
+        inputs.push(input);
       }
     });
     return inputs;

@@ -8,9 +8,10 @@ import mv from 'mv';
 const DEFAULT_STAGING_DIR = '/tmp/data';
 
 export type Input = {
-  type: 'audio' | 'video';
+  type: 'audio' | 'video' | 'text';
   key: string;
   filename: string;
+  hlsName?: string;
 };
 
 export interface PackageFormatOptions {
@@ -331,6 +332,21 @@ export function createShakaArgs(
           );
         }
       }
+      cmdInputs.push(streamOptions.join(','));
+    }
+    if (input.type === 'text') {
+      const playlistName = `text-${input.key}`;
+      const playlist = `${playlistName}.m3u8`;
+      const segmentTemplate = join(playlistName, '$Number$.vtt');
+      const hlsName = input.hlsName || input.key.toUpperCase();
+      const streamOptions = [
+        `in=${input.filename}`,
+        'stream=text',
+        `segment_template=${segmentTemplate}`,
+        `playlist_name=${playlist}`,
+        'hls_group_id=text',
+        `hls_name=${hlsName}`
+      ];
       cmdInputs.push(streamOptions.join(','));
     }
   });
