@@ -17,6 +17,10 @@ shaka-packager executable must be available in path under the name `packager`. W
 > shaka-packager-s3 s3://source-bucket/folder s3://output-bucket/folder -i a:1=audio.mp4 -i v:1=video.mp4
 > shaka-packager-s3 /path/to/source/folder /path/to/output/folder -i a:1=audio.mp4 -i v:1=video.mp4
 
+Input format:
+    [a|v|t]:<key>=<filename>[:hlsName]
+    e.g. t:sv=subs.vtt:Swedish
+
 ```
 
 ### Library

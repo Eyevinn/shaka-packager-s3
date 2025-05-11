@@ -7,17 +7,19 @@ function parseInputOptions(inputOptions: string[]): Input[] | undefined {
   if (inputOptions) {
     const inputs: Input[] = [];
     inputOptions.map((inputOption) => {
-      const [type, keyAndFilename] = inputOption.split(':');
-      const [key, filenameAndHlsName] = keyAndFilename.split('=');
-      const [filename, hlsName] = filenameAndHlsName.split(':');
+      const [type, keyAndFilename, hlsName] = inputOption.split(':');
+      const [key, filename] = keyAndFilename.split('=');
+
       if (type && key && filename) {
         const inputType: 'audio' | 'video' | 'text' =
           type === 'a' ? 'audio' : type === 't' ? 'text' : 'video';
 
         const input: Input = { type: inputType, key, filename };
-        if (inputType === 'text' && hlsName) {
+
+        if ((inputType === 'audio' || inputType === 'text') && hlsName) {
           input.hlsName = hlsName;
         }
+
         inputs.push(input);
       }
     });
