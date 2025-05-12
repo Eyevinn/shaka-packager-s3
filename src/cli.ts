@@ -7,11 +7,20 @@ function parseInputOptions(inputOptions: string[]): Input[] | undefined {
   if (inputOptions) {
     const inputs: Input[] = [];
     inputOptions.map((inputOption) => {
-      const [type, keyAndFilename] = inputOption.split(':');
+      const [type, keyAndFilename, hlsName] = inputOption.split(':');
       const [key, filename] = keyAndFilename.split('=');
+
       if (type && key && filename) {
-        const inputType = type === 'a' ? 'audio' : 'video';
-        inputs.push({ type: inputType, key, filename });
+        const inputType: 'audio' | 'video' | 'text' =
+          type === 'a' ? 'audio' : type === 't' ? 'text' : 'video';
+
+        const input: Input = { type: inputType, key, filename };
+
+        if ((inputType === 'audio' || inputType === 'text') && hlsName) {
+          input.hlsName = hlsName;
+        }
+
+        inputs.push(input);
       }
     });
     return inputs;
@@ -28,6 +37,10 @@ cli
     $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s s3://source-bucket/folder -d s3://output-bucket/folder 
     $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder
     $ shaka-packager-s3 -i a:2=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder --segment-single-file --segment-single-file-name 'Container$KEY$.mp4' --segment-duration 3.84
+
+    Input format:
+    [a|v|t]:<key>=<filename>[:hlsName]
+    e.g. t:sv=subs.vtt:Swedish
   `
   )
   .option(
@@ -36,7 +49,7 @@ cli
   )
   .option(
     '-i, --input [inputOptions...]',
-    'Input options on the format: [a|v]:<key>=filename'
+    'Input options on the format: [a|v|t]:<key>=<filename>[:hlsName]'
   )
   .option(
     '--staging-dir [stagingDir]',
