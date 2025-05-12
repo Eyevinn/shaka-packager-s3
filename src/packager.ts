@@ -338,14 +338,13 @@ export function createShakaArgs(
       const playlistName = `text-${input.key}`;
       const playlist = `${playlistName}.m3u8`;
       const segmentTemplate = join(playlistName, '$Number$.vtt');
-      const hlsName = input.hlsName || input.key.toUpperCase();
       const streamOptions = [
         `in=${input.filename}`,
         'stream=text',
         `segment_template=${segmentTemplate}`,
         `playlist_name=${playlist}`,
         'hls_group_id=text',
-        `hls_name=${hlsName}`
+        ...(input.hlsName ? [`hls_name=${input.hlsName}`] : [])
       ];
       cmdInputs.push(streamOptions.join(','));
     }
@@ -362,7 +361,7 @@ export function createShakaArgs(
       'stream=audio',
       `playlist_name=${playlist}`,
       'hls_group_id=audio',
-      'hls_name=defaultaudio'
+      `hls_name=${inputForAudio.hlsName || 'defaultaudio'}`
     ];
     if (packageFormatOptions?.segmentSingleFile) {
       // Ensure non-duplicate key, to ensure unique segment file name

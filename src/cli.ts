@@ -37,6 +37,10 @@ cli
     $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s s3://source-bucket/folder -d s3://output-bucket/folder 
     $ shaka-packager-s3 -i a:1=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder
     $ shaka-packager-s3 -i a:2=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder --segment-single-file --segment-single-file-name 'Container$KEY$.mp4' --segment-duration 3.84
+
+    Input format:
+    [a|v|t]:<key>=<filename>[:hlsName]
+    e.g. t:sv=subs.vtt:Swedish
   `
   )
   .option(
@@ -45,7 +49,7 @@ cli
   )
   .option(
     '-i, --input [inputOptions...]',
-    'Input options on the format: [a|v]:<key>=filename'
+    'Input options on the format: [a|v|t]:<key>=<filename>[:hlsName]'
   )
   .option(
     '--staging-dir [stagingDir]',
