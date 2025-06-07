@@ -116,7 +116,7 @@ Options:
   --shaka-executable [shakaExecutable]                Path to shaka-packager executable, defaults to 'packager'. Can also be set with environment variable SHAKA_PACKAGER_EXECUTABLE.
   --no-implicit-audio [noImplicitAudio]               Do not include audio unless audio input specified
   -d, --destination-folder <dest>                     Destination folder URL (supported protocols: s3, local file). Defaults to CWD.
-  --endpoint-url [s3EndpointUrl]                      S3 endpoint URL
+  --endpoint-url [s3EndpointUrl]                      S3 endpoint URL. Can also be set with environment variable S3_ENDPOINT_URL
   --dash-only                                         Package only DASH format
   --hls-only                                          Package only HLS format
   --segment-single-file                               Use byte range addressing and a single segment file per stream

@@ -112,7 +112,7 @@ cli
       );
       await doPackage({
         dest: options.destinationFolder || '.',
-        s3EndpointUrl: options.s3EndpointUrl,
+        s3EndpointUrl: process.env.S3_ENDPOINT_URL || options.s3EndpointUrl,
         source: options.sourceFolder,
         inputs: inputOptions,
         stagingDir: options.stagingDir,
