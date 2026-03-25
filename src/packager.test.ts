@@ -564,4 +564,25 @@ describe('Test create shaka args', () => {
       'myDashManifest.mpd'
     ]);
   });
+
+  it('Should generate per-stream iframe playlists when iframePlaylists is true', async () => {
+    const args = createShakaArgs(singleInputVideo, true, {
+      iframePlaylists: true
+    });
+    expect(args[0]).toBe(
+      'in=test.mp4,stream=video,playlist_name=video-1.m3u8,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s,iframe_playlist_name=iframe-1.m3u8'
+    );
+  });
+
+  it('Should generate unique iframe playlist per video input', async () => {
+    const multiVideo: Input[] = [
+      { type: 'video', filename: 'high.mp4', key: '0_3000' },
+      { type: 'video', filename: 'low.mp4', key: '1_800' }
+    ];
+    const args = createShakaArgs(multiVideo, true, {
+      iframePlaylists: true
+    });
+    expect(args[0]).toContain('iframe_playlist_name=iframe-0_3000.m3u8');
+    expect(args[1]).toContain('iframe_playlist_name=iframe-1_800.m3u8');
+  });
 });
