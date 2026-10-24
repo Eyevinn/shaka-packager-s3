@@ -6,6 +6,9 @@
   "bin": {
     "shaka-packager-s3": "dist/cli.js"
   },
+  "engines": {
+    "node": "^22.23.4 || >=24.22.1"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
