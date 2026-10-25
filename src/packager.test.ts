@@ -1,4 +1,10 @@
-import { createShakaArgs, doPackage, Input, download } from './packager';
+import {
+  createShakaArgs,
+  createPackage,
+  doPackage,
+  Input,
+  download
+} from './packager';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -465,6 +471,80 @@ describe('Test doPackage', () => {
   });
 });
 
+describe('Test key material is never logged', () => {
+  const keyId = '00112233445566778899aabbccddeeff';
+  const key = 'ffeeddccbbaa99887766554433221100';
+  const encryption = {
+    scheme: 'cenc' as const,
+    keys: [{ keyId, key }]
+  };
+
+  it('Does not log the key when running the packager', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await createPackage({
+      inputs: singleInputVideo,
+      dest: '.',
+      stagingDir: '/tmp/test-staging',
+      encryption
+    });
+
+    const logged = log.mock.calls
+      .map((call) => JSON.stringify(call))
+      .join('\n');
+    expect(logged).not.toContain(key);
+    expect(logged).toContain('key=<redacted>');
+    // The key id is not secret and is signalled in the manifests
+    expect(logged).toContain(keyId);
+    // The packager itself still gets the real key
+    expect(mockedSpawnSync).toHaveBeenCalledWith(
+      'packager',
+      expect.arrayContaining([`key_id=${keyId}:key=${key}`]),
+      expect.anything()
+    );
+    log.mockRestore();
+  });
+
+  it('Does not log or throw the key when the packager fails', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    const errorLog = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockedSpawnSync.mockReturnValue({
+      status: 1,
+      stdout: Buffer.from(''),
+      // Shaka echoes the --keys value on a parse error
+      stderr: Buffer.from(`Failed to parse --keys key_id=${keyId}:key=${key}`),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    let message = '';
+    try {
+      await createPackage({
+        inputs: singleInputVideo,
+        dest: '.',
+        stagingDir: '/tmp/test-staging',
+        encryption
+      });
+      fail('Should throw');
+    } catch (err) {
+      message = (err as Error).message;
+    }
+
+    const logged = [...log.mock.calls, ...errorLog.mock.calls]
+      .map((call) => JSON.stringify(call))
+      .join('\n');
+    expect(message).toBe('Packager failed');
+    expect(message).not.toContain(key);
+    expect(logged).not.toContain(key);
+    expect(logged).toContain('key=<redacted>');
+    log.mockRestore();
+    errorLog.mockRestore();
+  });
+});
+
 describe('Test create shaka args', () => {
   it('Should use first video file as audio source if noImplicitAudio not set', async () => {
     const args = createShakaArgs(singleInputVideo, false);
@@ -547,6 +627,67 @@ describe('Test create shaka args', () => {
       '--mpd_output',
       'manifest.mpd'
     ]);
+  });
+
+  it('Should append raw key encryption args when encryption is specified', async () => {
+    const args = createShakaArgs(singleInputVideo, true, undefined, {
+      scheme: 'cbcs',
+      keys: [
+        {
+          label: 'HD',
+          keyId: '00112233445566778899aabbccddeeff',
+          key: 'ffeeddccbbaa99887766554433221100'
+        }
+      ],
+      protectionSystems: ['widevine', 'fairplay'],
+      hlsKeyUri: 'skd://00112233445566778899aabbccddeeff',
+      clearLead: 0
+    });
+    expect(args).toEqual([
+      'in=test.mp4,stream=video,playlist_name=video-1.m3u8,init_segment=video-1/init.mp4,segment_template=video-1/$Number$.m4s',
+      '--hls_master_playlist_output',
+      'index.m3u8',
+      '--generate_static_live_mpd',
+      '--mpd_output',
+      'manifest.mpd',
+      '--enable_raw_key_encryption',
+      '--keys',
+      'label=HD:key_id=00112233445566778899aabbccddeeff:key=ffeeddccbbaa99887766554433221100',
+      '--protection_scheme',
+      'cbcs',
+      '--protection_systems',
+      'widevine,fairplay',
+      '--hls_key_uri',
+      'skd://00112233445566778899aabbccddeeff',
+      '--clear_lead',
+      '0'
+    ]);
+  });
+
+  it('Should produce the same args as without encryption when encryption is omitted', async () => {
+    expect(
+      createShakaArgs(singleInputVideo, false, undefined, undefined)
+    ).toEqual(createShakaArgs(singleInputVideo, false));
+  });
+
+  it('Should throw if hlsKeyUri is set for dash only output', async () => {
+    expect(() =>
+      createShakaArgs(
+        singleInputVideo,
+        true,
+        { dashOnly: true },
+        {
+          scheme: 'cenc',
+          keys: [
+            {
+              keyId: '00112233445566778899aabbccddeeff',
+              key: 'ffeeddccbbaa99887766554433221100'
+            }
+          ],
+          hlsKeyUri: 'skd://00112233445566778899aabbccddeeff'
+        }
+      )
+    ).toThrow('hlsKeyUri requires HLS output');
   });
 
   it('Should set name of master playlist and manifest as specified', async () => {

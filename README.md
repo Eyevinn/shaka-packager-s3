@@ -54,6 +54,37 @@ doPackage({
   });
 ```
 
+#### Encryption (raw keys)
+
+Pass an `encryption` option to protect the output with CENC, using keys you
+supply yourself (raw key mode). Keys and key ids are hex, 16 bytes each. A key
+without a `label` is used for every stream; add a label (`AUDIO`, `SD`, `HD`,
+`UHD1`, `UHD2`) to use a separate key per stream.
+
+```javascript
+doPackage({
+  dest,
+  inputs,
+  encryption: {
+    scheme: 'cbcs', // or 'cenc'
+    keys: [
+      { label: 'AUDIO', keyId: '<32 hex digits>', key: '<32 hex digits>' },
+      { label: 'HD', keyId: '<32 hex digits>', key: '<32 hex digits>' }
+    ],
+    protectionSystems: ['widevine', 'fairplay'],
+    hlsKeyUri: 'skd://<key id>', // HLS only
+    clearLead: 0
+  }
+});
+```
+
+Options: `scheme` (`cenc` or `cbcs`), `keys`, `protectionSystems`
+(`widevine`, `playready`, `fairplay`, `marlin`, `common`), `pssh` (one or more
+pre-built PSSH boxes as a hex string), `hlsKeyUri` and `clearLead` (seconds).
+Key material is redacted from the logged command line and from packager error
+output, but it is passed to the packager process on its command line, so treat
+the host as trusted.
+
 ### Docker
 
 ```
