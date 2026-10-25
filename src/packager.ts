@@ -3,6 +3,13 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, unlinkSync } from 'node:fs';
 import { readdir, mkdir } from 'node:fs/promises';
 import { createS3cmdArgs, toUrl, toUrlOrUndefined } from './util';
+import {
+  EncryptionOptions,
+  createEncryptionArgs,
+  redactArgs,
+  redactKeyMaterial,
+  validateEncryptionOptions
+} from './encryption';
 import mv from 'mv';
 
 const DEFAULT_STAGING_DIR = '/tmp/data';
@@ -32,6 +39,7 @@ export interface PackageOptions {
   stagingDir?: string;
   noImplicitAudio?: boolean;
   packageFormatOptions?: PackageFormatOptions;
+  encryption?: EncryptionOptions;
   shakaExecutable?: string;
   serviceAccessToken?: string;
   s3EndpointUrl?: string;
@@ -50,6 +58,11 @@ function validateOptions(opts: PackageOptions) {
       -1
   ) {
     throw new Error('segmentSingleFileTemplate must contain $KEY$');
+  }
+  if (opts.encryption) {
+    validateEncryptionOptions(opts.encryption, {
+      hlsEnabled: opts.packageFormatOptions?.dashOnly !== true
+    });
   }
 }
 
@@ -271,19 +284,21 @@ export async function createPackage(opts: PackageOptions) {
   const args = createShakaArgs(
     downloadedInputs,
     noImplicitAudio === true,
-    opts.packageFormatOptions
+    opts.packageFormatOptions,
+    opts.encryption
   );
-  console.log(args);
+  // Never log raw key material, see redactArgs() in ./encryption
+  console.log(redactArgs(args));
   const shaka = opts.shakaExecutable || 'packager';
   const { status, stderr, error } = spawnSync(shaka, args, {
     cwd: stagingDir
   });
   if (status !== 0) {
     if (error) {
-      console.error(`Packager failed: ${error.message}`);
+      console.error(`Packager failed: ${redactKeyMaterial(error.message)}`);
     } else {
       console.error(`Packager failed with exit code ${status}`);
-      console.error(stderr.toString());
+      console.error(redactKeyMaterial(stderr.toString()));
     }
     throw new Error('Packager failed');
   }
@@ -295,11 +310,13 @@ export async function createPackage(opts: PackageOptions) {
  * @param inputs List of inputs, filename needs to be a local path
  * @param noImplicitAudio Should we use first video file as audio source if no audio input is provided
  * @param packageFormatOptions Options for package format
+ * @param encryption Raw key encryption options, output is unencrypted if omitted
  */
 export function createShakaArgs(
   inputs: Input[],
   noImplicitAudio: boolean,
-  packageFormatOptions?: PackageFormatOptions
+  packageFormatOptions?: PackageFormatOptions,
+  encryption?: EncryptionOptions
 ): string[] {
   const cmdInputs: string[] = [];
 
@@ -411,6 +428,11 @@ export function createShakaArgs(
       packageFormatOptions.segmentDuration.toString()
     );
   }
+  cmdInputs.push(
+    ...createEncryptionArgs(encryption, {
+      hlsEnabled: packageFormatOptions?.dashOnly !== true
+    })
+  );
   return cmdInputs;
 }
 
