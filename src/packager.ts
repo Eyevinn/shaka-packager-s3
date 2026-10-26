@@ -42,6 +42,7 @@ export interface PackageFormatOptions {
   dashManifestName?: string;
   hlsManifestName?: string;
   tsOutput?: boolean;
+  iframePlaylists?: boolean;
 }
 
 export interface PackageOptions {
@@ -394,6 +395,9 @@ export function createShakaArgs(
             `segment_template=${segmentTemplate}`
           );
         }
+      }
+      if (packageFormatOptions?.iframePlaylists) {
+        streamOptions.push(`iframe_playlist_name=iframe-${input.key}.m3u8`);
       }
       cmdInputs.push(streamOptions.join(','));
     }
