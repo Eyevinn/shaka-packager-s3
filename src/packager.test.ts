@@ -3,9 +3,14 @@ import {
   createPackage,
   doPackage,
   Input,
-  download
+  download,
+  uploadPackage
 } from './packager';
-import { spawnSync } from 'node:child_process';
+import {
+  spawnSync,
+  SpawnSyncOptions,
+  SpawnSyncReturns
+} from 'node:child_process';
 import path from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import { URL } from 'url';
@@ -704,5 +709,140 @@ describe('Test create shaka args', () => {
       '--mpd_output',
       'myDashManifest.mpd'
     ]);
+  });
+});
+
+describe('Test spawned processes are not killed with ENOBUFS', () => {
+  // spawnSync buffers at most 1 MiB of piped output unless maxBuffer says
+  // otherwise, see SpawnSyncOptions.maxBuffer in
+  // node_modules/@types/node/child_process.d.ts:1398
+  const NODE_DEFAULT_MAX_BUFFER = 1024 * 1024;
+
+  /**
+   * Stand-in for a child process that writes `bytes` of output, applying the
+   * same rule as spawnSync: output past maxBuffer kills the child and reports
+   * ENOBUFS.
+   */
+  function childWritingOutput(bytes: number) {
+    return (
+      command: string,
+      args?: readonly string[],
+      options?: SpawnSyncOptions
+    ): SpawnSyncReturns<Buffer> => {
+      const limit = options?.maxBuffer ?? NODE_DEFAULT_MAX_BUFFER;
+      if (bytes > limit) {
+        const enobufs: NodeJS.ErrnoException = new Error(
+          `spawnSync ${command} ENOBUFS`
+        );
+        enobufs.code = 'ENOBUFS';
+        return {
+          pid: 123,
+          output: [],
+          stdout: Buffer.alloc(0),
+          stderr: Buffer.alloc(0),
+          status: null,
+          signal: 'SIGTERM',
+          error: enobufs
+        };
+      }
+      return {
+        pid: 123,
+        output: [],
+        stdout: Buffer.alloc(0),
+        stderr: Buffer.alloc(0),
+        status: 0,
+        signal: null
+      };
+    };
+  }
+
+  it('Asks for a buffer larger than the default when uploading', async () => {
+    await uploadPackage(new URL('s3://my-bucket/package/'), '/tmp/test-dir');
+
+    expect(mockedSpawnSync).toHaveBeenCalledWith(
+      'aws',
+      expect.arrayContaining(['cp', '--recursive', '--only-show-errors']),
+      expect.objectContaining({
+        stdio: ['ignore', 'ignore', 'pipe'],
+        maxBuffer: expect.any(Number)
+      })
+    );
+    const options = mockedSpawnSync.mock.calls[0][2] as SpawnSyncOptions;
+    expect(options.maxBuffer).toBeGreaterThan(NODE_DEFAULT_MAX_BUFFER);
+  });
+
+  it('Uploads a package whose output exceeds the default buffer', async () => {
+    mockedSpawnSync.mockImplementation(
+      childWritingOutput(8 * NODE_DEFAULT_MAX_BUFFER) as typeof spawnSync
+    );
+
+    await expect(
+      uploadPackage(new URL('s3://my-bucket/package/'), '/tmp/test-dir')
+    ).resolves.toBeUndefined();
+  });
+
+  it('Asks for a buffer larger than the default when running the packager', async () => {
+    await createPackage({
+      inputs: singleInputVideo,
+      dest: '.',
+      stagingDir: '/tmp/test-staging'
+    });
+
+    expect(mockedSpawnSync).toHaveBeenCalledWith(
+      'packager',
+      expect.any(Array),
+      expect.objectContaining({
+        cwd: '/tmp/test-staging',
+        maxBuffer: expect.any(Number)
+      })
+    );
+    const options = mockedSpawnSync.mock.calls[0][2] as SpawnSyncOptions;
+    expect(options.maxBuffer).toBeGreaterThan(NODE_DEFAULT_MAX_BUFFER);
+  });
+
+  it('Packages inputs whose packager output exceeds the default buffer', async () => {
+    mockedSpawnSync.mockImplementation(
+      childWritingOutput(8 * NODE_DEFAULT_MAX_BUFFER) as typeof spawnSync
+    );
+
+    await expect(
+      createPackage({
+        inputs: singleInputVideo,
+        dest: '.',
+        stagingDir: '/tmp/test-staging'
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('Keeps transfer progress out of the buffered download output', async () => {
+    await download(
+      { type: 'video', filename: 'video.mp4', key: '1' },
+      new URL('s3://my-bucket/videos/'),
+      '/tmp/test-staging'
+    );
+    expect(mockedSpawnSync).toHaveBeenCalledWith(
+      'aws',
+      expect.arrayContaining(['--only-show-errors'])
+    );
+
+    jest.clearAllMocks();
+    mockedSpawnSync.mockReturnValue({
+      status: 0,
+      stdout: Buffer.from(''),
+      stderr: Buffer.from(''),
+      pid: 123,
+      output: [],
+      signal: null
+    });
+
+    await download(
+      { type: 'video', filename: 'video.mp4', key: '1' },
+      new URL('https://example.com/videos/'),
+      '/tmp/test-staging'
+    );
+    expect(mockedSpawnSync).toHaveBeenCalledWith(
+      'curl',
+      expect.arrayContaining(['-sS'])
+    );
   });
 });
