@@ -14,6 +14,18 @@ import mv from 'mv';
 
 const DEFAULT_STAGING_DIR = '/tmp/data';
 
+/**
+ * Upper bound for output we buffer from a spawned child process.
+ *
+ * spawnSync kills the child and fails with ENOBUFS as soon as a piped stdio
+ * stream passes `maxBuffer`, which defaults to 1 MiB. Transfer and packaging
+ * tools happily write more than that (per-file transfer lines, packager
+ * progress and warnings), so give them room instead of taking the default.
+ * See SpawnSyncOptions.maxBuffer in
+ * node_modules/@types/node/child_process.d.ts:1398.
+ */
+const MAX_OUTPUT_BUFFER = 256 * 1024 * 1024;
+
 export type Input = {
   type: 'audio' | 'video' | 'text';
   key: string;
@@ -136,7 +148,15 @@ export async function download(
       inputFileURL ? path.basename(input.filename) : input.filename
     );
     const args = createS3cmdArgs(
-      ['cp', sourceFileS3URL.toString(), localFilename],
+      [
+        'cp',
+        // Transfer progress is written continuously to stdout and can grow
+        // past the spawnSync output buffer on a large file, which fails the
+        // download with ENOBUFS. Errors are still reported.
+        '--only-show-errors',
+        sourceFileS3URL.toString(),
+        localFilename
+      ],
       endpointUrl
     );
     const { status, stderr } = spawnSync('aws', args);
@@ -172,7 +192,15 @@ export async function download(
     }
     const { status, stderr, error } = spawnSync(
       'curl',
-      auth.concat(['-o', localFilename, sourceFileURL.toString()])
+      auth.concat([
+        // The progress meter is written continuously to stderr and can grow
+        // past the spawnSync output buffer on a long download, which fails
+        // the download with ENOBUFS. -S keeps error messages.
+        '-sS',
+        '-o',
+        localFilename,
+        sourceFileURL.toString()
+      ])
     );
     if (status !== 0) {
       if (error) {
@@ -235,17 +263,32 @@ export async function uploadPackage(
   if (dest.protocol === 's3:') {
     console.log(`Uploading package to ${dest.toString()}`);
     const args = createS3cmdArgs(
-      ['cp', '--recursive', stagingDir, dest.toString()],
+      [
+        'cp',
+        '--recursive',
+        // One progress line per file, so a package with many segments writes
+        // far more than the spawnSync output buffer holds and the upload
+        // fails with ENOBUFS. Errors are still written to stderr.
+        '--only-show-errors',
+        stagingDir,
+        dest.toString()
+      ],
       s3EndpointUrl
     );
-    const { status, error } = spawnSync('aws', args, {
-      stdio: 'ignore'
+    const { status, stderr, error } = spawnSync('aws', args, {
+      // Keep stderr so a failing upload can be diagnosed, and allow it more
+      // than the 1 MiB default before spawnSync gives up with ENOBUFS.
+      stdio: ['ignore', 'ignore', 'pipe'],
+      maxBuffer: MAX_OUTPUT_BUFFER
     });
     if (status !== 0) {
       if (error) {
         console.error(`Upload failed: ${error.message}`);
       } else {
         console.error(`Upload failed with exit code ${status}`);
+      }
+      if (stderr) {
+        console.error(stderr.toString());
       }
       throw new Error('Upload failed');
     }
@@ -291,7 +334,10 @@ export async function createPackage(opts: PackageOptions) {
   console.log(redactArgs(args));
   const shaka = opts.shakaExecutable || 'packager';
   const { status, stderr, error } = spawnSync(shaka, args, {
-    cwd: stagingDir
+    cwd: stagingDir,
+    // The packager logs progress and warnings for the whole run; without this
+    // a long job is killed with ENOBUFS once the default 1 MiB is filled.
+    maxBuffer: MAX_OUTPUT_BUFFER
   });
   if (status !== 0) {
     if (error) {
