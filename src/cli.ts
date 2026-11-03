@@ -7,7 +7,7 @@ function parseInputOptions(inputOptions: string[]): Input[] | undefined {
   if (inputOptions) {
     const inputs: Input[] = [];
     inputOptions.map((inputOption) => {
-      const [type, keyAndFilename, hlsName] = inputOption.split(':');
+      const [type, keyAndFilename, hlsName, language] = inputOption.split(':');
       const [key, filename] = keyAndFilename.split('=');
 
       if (type && key && filename) {
@@ -18,6 +18,10 @@ function parseInputOptions(inputOptions: string[]): Input[] | undefined {
 
         if ((inputType === 'audio' || inputType === 'text') && hlsName) {
           input.hlsName = hlsName;
+        }
+
+        if (inputType === 'text' && language) {
+          input.language = language;
         }
 
         inputs.push(input);
@@ -39,8 +43,9 @@ cli
     $ shaka-packager-s3 -i a:2=audio.mp4 -i v:1=video.mp4 -s /path/to/source/folder -d /path/to/output/folder --segment-single-file --segment-single-file-name 'Container$KEY$.mp4' --segment-duration 3.84
 
     Input format:
-    [a|v|t]:<key>=<filename>[:hlsName]
-    e.g. t:sv=subs.vtt:Swedish
+    [a|v|t]:<key>=<filename>[:hlsName[:language]]
+    e.g. t:sv=subs.vtt:Swedish:sv
+    (language applies to text inputs and sets the subtitle track language in the manifest)
   `
   )
   .option(
@@ -49,7 +54,7 @@ cli
   )
   .option(
     '-i, --input [inputOptions...]',
-    'Input options on the format: [a|v|t]:<key>=<filename>[:hlsName]'
+    'Input options on the format: [a|v|t]:<key>=<filename>[:hlsName[:language]]'
   )
   .option(
     '--staging-dir [stagingDir]',

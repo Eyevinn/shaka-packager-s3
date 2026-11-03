@@ -710,6 +710,131 @@ describe('Test create shaka args', () => {
       'myDashManifest.mpd'
     ]);
   });
+
+  it('Should emit language on a text stream when language is set', async () => {
+    const args = createShakaArgs(
+      [
+        {
+          type: 'text',
+          filename: 'subs.vtt',
+          key: 'sv',
+          hlsName: 'Swedish',
+          language: 'sv'
+        }
+      ],
+      true
+    );
+    expect(args).toContain(
+      'in=subs.vtt,stream=text,segment_template=text-sv/$Number$.vtt,playlist_name=text-sv.m3u8,hls_group_id=text,hls_name=Swedish,language=sv'
+    );
+  });
+
+  it('Should emit language on a text stream without an hlsName', async () => {
+    const args = createShakaArgs(
+      [
+        {
+          type: 'text',
+          filename: 'subs.vtt',
+          key: 'sv',
+          language: 'sv'
+        }
+      ],
+      true
+    );
+    expect(args).toContain(
+      'in=subs.vtt,stream=text,segment_template=text-sv/$Number$.vtt,playlist_name=text-sv.m3u8,hls_group_id=text,language=sv'
+    );
+  });
+
+  it('Should not emit language on a text stream when language is omitted', async () => {
+    const args = createShakaArgs(
+      [
+        {
+          type: 'text',
+          filename: 'subs.vtt',
+          key: 'sv'
+        }
+      ],
+      true
+    );
+    const textArg = args.find((arg) => arg.includes('stream=text'));
+    expect(textArg).toBe(
+      'in=subs.vtt,stream=text,segment_template=text-sv/$Number$.vtt,playlist_name=text-sv.m3u8,hls_group_id=text'
+    );
+    expect(textArg).not.toContain('language=');
+  });
+});
+
+describe('Stream descriptor input validation', () => {
+  // The packager reads stream options as a comma-joined list of
+  // <field>=<value> pairs ("Stream descriptor is of the form
+  // <field>=<value>[,<field>=<value>]...",
+  // docs/source/options/stream_descriptors.rst in
+  // shaka-project/shaka-packager), so a comma or an equals sign inside a value
+  // would add fields of the caller's choosing.
+  const textInput = (overrides: Partial<Input>): Input[] => [
+    {
+      type: 'text',
+      filename: 'subs.vtt',
+      key: 'sv',
+      ...overrides
+    }
+  ];
+
+  it('Should reject a language value carrying an injected descriptor field', () => {
+    expect(() =>
+      createShakaArgs(textInput({ language: 'sv,out=/tmp/pwned.mp4' }), true)
+    ).toThrow(/Invalid language tag/);
+  });
+
+  it('Should reject a language value with an equals sign or whitespace', () => {
+    expect(() =>
+      createShakaArgs(textInput({ language: 'out=x' }), true)
+    ).toThrow(/Invalid language tag/);
+    expect(() =>
+      createShakaArgs(textInput({ language: 'sv SE' }), true)
+    ).toThrow(/Invalid language tag/);
+    expect(() => createShakaArgs(textInput({ language: '' }), true)).toThrow(
+      /Invalid language tag/
+    );
+  });
+
+  it('Should accept well-formed BCP 47 language tags', () => {
+    for (const language of ['sv', 'swe', 'und', 'sv-SE', 'zh-Hans-CN']) {
+      const args = createShakaArgs(textInput({ language }), true);
+      expect(args).toContain(
+        `in=subs.vtt,stream=text,segment_template=text-sv/$Number$.vtt,playlist_name=text-sv.m3u8,hls_group_id=text,language=${language}`
+      );
+    }
+  });
+
+  it('Should reject an hlsName carrying an injected descriptor field', () => {
+    expect(() =>
+      createShakaArgs(
+        textInput({ hlsName: 'Swedish,out=/tmp/pwned.mp4', language: 'sv' }),
+        true
+      )
+    ).toThrow(/Invalid hlsName/);
+  });
+
+  it('Should still accept an hlsName with spaces and punctuation', () => {
+    const args = createShakaArgs(
+      textInput({ hlsName: 'Swedish (forced)', language: 'sv' }),
+      true
+    );
+    expect(args).toContain(
+      'in=subs.vtt,stream=text,segment_template=text-sv/$Number$.vtt,playlist_name=text-sv.m3u8,hls_group_id=text,hls_name=Swedish (forced),language=sv'
+    );
+  });
+
+  it('Should reject an injected language before any packaging work starts', async () => {
+    await expect(
+      doPackage({
+        inputs: textInput({ language: 'sv,out=/tmp/pwned.mp4' }),
+        dest: '/tmp/dest'
+      })
+    ).rejects.toThrow(/Invalid language tag/);
+  });
 });
 
 describe('Test spawned processes are not killed with ENOBUFS', () => {
