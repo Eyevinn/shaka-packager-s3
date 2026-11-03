@@ -37,6 +37,48 @@ export type Input = {
   language?: string;
 };
 
+/**
+ * Well-formed BCP 47 language tag shape.
+ *
+ * A primary language subtag of 2-8 letters, followed by any number of
+ * 1-8 alphanumeric subtags (script, region, variant, extension, private use),
+ * each separated by a single hyphen. This is a shape check, not a registry
+ * lookup: it accepts `sv`, `sv-SE` and `zh-Hans-CN` and rejects anything
+ * carrying a `,`, `=`, `:`, whitespace or an empty subtag.
+ *
+ * The packager takes its stream options as a comma-joined list of
+ * `<field>=<value>` pairs ("Stream descriptor is of the form
+ * <field>=<value>[,<field>=<value>]...", docs/source/options/stream_descriptors.rst
+ * in shaka-project/shaka-packager), so a value containing a comma or an equals
+ * sign would be read as further descriptor fields rather than as part of the
+ * language tag.
+ */
+const BCP47_LANGUAGE_TAG = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/;
+
+/**
+ * Reject input fields that cannot be safely placed in a stream descriptor.
+ *
+ * `language` must be a well-formed BCP 47 tag; `hlsName` is free text, so it
+ * only has to be free of the descriptor separators themselves. Without this,
+ * a value such as `sv,out=/tmp/evil.mp4` would inject an extra `out=` field
+ * that the packager honours.
+ */
+export function validateInput(input: Input) {
+  if (
+    input.language !== undefined &&
+    !BCP47_LANGUAGE_TAG.test(input.language)
+  ) {
+    throw new Error(
+      `Invalid language tag: ${input.language}, must be a BCP 47 language tag, e.g. 'sv' or 'sv-SE'`
+    );
+  }
+  if (input.hlsName !== undefined && /[,=]/.test(input.hlsName)) {
+    throw new Error(
+      `Invalid hlsName: ${input.hlsName}, must not contain ',' or '='`
+    );
+  }
+}
+
 export interface PackageFormatOptions {
   hlsOnly?: boolean;
   dashOnly?: boolean;
@@ -62,6 +104,7 @@ export interface PackageOptions {
 }
 
 function validateOptions(opts: PackageOptions) {
+  opts.inputs?.forEach(validateInput);
   if (
     opts?.packageFormatOptions?.hlsOnly &&
     opts?.packageFormatOptions?.dashOnly
@@ -369,6 +412,8 @@ export function createShakaArgs(
   encryption?: EncryptionOptions
 ): string[] {
   const cmdInputs: string[] = [];
+
+  inputs.forEach(validateInput);
 
   inputs.forEach((input: Input) => {
     if (input.type === 'video') {
