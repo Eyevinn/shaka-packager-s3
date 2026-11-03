@@ -31,6 +31,10 @@ export type Input = {
   key: string;
   filename: string;
   hlsName?: string;
+  // Language tag for the stream (e.g. a text/vtt subtitle track), emitted as
+  // the packager `language=` stream descriptor field so it is carried into the
+  // HLS/DASH manifest and a player can label and select the track.
+  language?: string;
 };
 
 export interface PackageFormatOptions {
@@ -407,7 +411,8 @@ export function createShakaArgs(
         `segment_template=${segmentTemplate}`,
         `playlist_name=${playlist}`,
         'hls_group_id=text',
-        ...(input.hlsName ? [`hls_name=${input.hlsName}`] : [])
+        ...(input.hlsName ? [`hls_name=${input.hlsName}`] : []),
+        ...(input.language ? [`language=${input.language}`] : [])
       ];
       cmdInputs.push(streamOptions.join(','));
     }

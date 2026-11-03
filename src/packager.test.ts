@@ -710,6 +710,59 @@ describe('Test create shaka args', () => {
       'myDashManifest.mpd'
     ]);
   });
+
+  it('Should emit language on a text stream when language is set', async () => {
+    const args = createShakaArgs(
+      [
+        {
+          type: 'text',
+          filename: 'subs.vtt',
+          key: 'sv',
+          hlsName: 'Swedish',
+          language: 'sv'
+        }
+      ],
+      true
+    );
+    expect(args).toContain(
+      'in=subs.vtt,stream=text,segment_template=text-sv/$Number$.vtt,playlist_name=text-sv.m3u8,hls_group_id=text,hls_name=Swedish,language=sv'
+    );
+  });
+
+  it('Should emit language on a text stream without an hlsName', async () => {
+    const args = createShakaArgs(
+      [
+        {
+          type: 'text',
+          filename: 'subs.vtt',
+          key: 'sv',
+          language: 'sv'
+        }
+      ],
+      true
+    );
+    expect(args).toContain(
+      'in=subs.vtt,stream=text,segment_template=text-sv/$Number$.vtt,playlist_name=text-sv.m3u8,hls_group_id=text,language=sv'
+    );
+  });
+
+  it('Should not emit language on a text stream when language is omitted', async () => {
+    const args = createShakaArgs(
+      [
+        {
+          type: 'text',
+          filename: 'subs.vtt',
+          key: 'sv'
+        }
+      ],
+      true
+    );
+    const textArg = args.find((arg) => arg.includes('stream=text'));
+    expect(textArg).toBe(
+      'in=subs.vtt,stream=text,segment_template=text-sv/$Number$.vtt,playlist_name=text-sv.m3u8,hls_group_id=text'
+    );
+    expect(textArg).not.toContain('language=');
+  });
 });
 
 describe('Test spawned processes are not killed with ENOBUFS', () => {
